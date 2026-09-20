@@ -2,7 +2,7 @@
 
 A multi-tenant procure-to-pay platform: companies (tenants) raise purchase requests, get them approved, and issue purchase orders to vendors. It is also a hands-on project for a full-stack Angular + Node.js skill set (see the coverage matrix below).
 
-**Status:** the single-tenant core API (phases 1-2) is implemented. Phases 3-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
+**Status:** the multi-tenant core API (phases 1-3) is implemented. Phases 4-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
 
 ## Business Requirements (BRD)
 
@@ -32,7 +32,7 @@ Purchasing in small and mid-size companies runs on email and spreadsheets: no ap
 | FR4 | Approval decisions recorded with comment, atomically | 1-2 (done) |
 | FR5 | Purchase order from approved request, one per request, sequential PO number | 1-2 (done) |
 | FR6 | Audit log of every state change | 1-2 (done), moves to MongoDB in 7 |
-| FR7 | Tenant isolation: no user can read or write another tenant's data | 3 |
+| FR7 | Tenant isolation: no user can read or write another tenant's data | 3 (done) |
 | FR8 | Notifications to approvers/requesters on state changes | 8-9 |
 | FR9 | AI: draft justification, recommend vendor, summarise spend | 10 |
 | FR10 | Web UI for all flows | 11 |
@@ -56,7 +56,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 | PostgreSQL schema design, query optimisation | Prisma schema (done); indexes and `EXPLAIN` in phase 6 |
 | MongoDB | Phase 7: audit trail |
 | Redis caching | Phase 5 (cache, rate limit, queues) |
-| Multi-tenant SaaS | Phase 3 |
+| Multi-tenant SaaS | Phase 3 (done) |
 | API versioning and documentation | Phase 4 |
 | AI/LLM integration | Phase 10 |
 | Git, CI/CD, Docker | Phases 12-13 |
@@ -86,12 +86,16 @@ Architecture decisions for each phase (tenancy model, which store owns what, ser
 4. `npm run db:migrate`, then `npm run db:seed`.
 5. `npm run dev`, then `GET /health`.
 
-Seeded users (password `Password123!`): `admin@`, `requester@`, `approver@`, `procurement@` `example.com`.
+Seeded tenants `acme` and `globex`, each with users (password `Password123!`): `admin@`, `requester@`, `approver@`, `procurement@` `example.com`. Log in with the tenant slug, e.g. `{"tenant":"acme","email":"admin@example.com","password":"Password123!"}`.
+
+### Multi-tenancy
+Shared database, shared schema: every business table carries `tenantId`. The JWT carries the tenant (`tid`); the auth middleware stores it in an `AsyncLocalStorage` context, and a Prisma client extension ([src/db/prisma.js](src/db/prisma.js)) adds `tenantId` to every query and fails closed when there is no tenant. Avoid raw SQL (`$queryRaw`), which bypasses that filter. Cross-tenant ids return 404. Suspending a tenant blocks new logins; existing tokens live until they expire (8h by default).
 
 ### Endpoints (current, unversioned)
 | Method & path | Roles |
 | --- | --- |
-| `POST /auth/login` | public |
+| `POST /platform/tenants` (creates tenant + first admin; header `x-platform-key`, needs `PLATFORM_API_KEY`) | platform owner |
+| `POST /auth/login` (body: `tenant`, `email`, `password`) | public |
 | `POST /auth/register` | ADMIN |
 | `GET /auth/me` | any |
 | `GET /vendors`, `GET /vendors/:id` | any |

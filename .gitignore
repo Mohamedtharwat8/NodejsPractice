@@ -28,6 +28,9 @@ coverage/
 # Editor / OS
 .vscode/
 .idea/
-*.swp
+*.swp 
 .DS_Store
 Thumbs.db
+
+# Planning docs (local only)
+plans/

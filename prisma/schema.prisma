@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  REQUESTER
+  APPROVER
+  PROCUREMENT
+  ADMIN
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PRStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum Decision {
+  APPROVED
+  REJECTED
+}
+
+enum POStatus {
+  ISSUED
+  CANCELLED
+}
+
+model User {
+  id           Int               @id @default(autoincrement())
+  name         String
+  email        String            @unique
+  passwordHash String
+  role         Role              @default(REQUESTER)
+  createdAt    DateTime          @default(now())
+  requests     PurchaseRequest[]
+  approvals    Approval[]
+  auditLogs    AuditLog[]
+}
+
+model Vendor {
+  id        Int             @id @default(autoincrement())
+  name      String
+  email     String?
+  phone     String?
+  status    VendorStatus    @default(ACTIVE)
+  createdAt DateTime        @default(now())
+  orders    PurchaseOrder[]
+}
+
+model PurchaseRequest {
+  id            Int             @id @default(autoincrement())
+  requesterId   Int
+  requester     User            @relation(fields: [requesterId], references: [id])
+  title         String
+  justification String?
+  status        PRStatus        @default(DRAFT)
+  totalAmount   Decimal         @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  items         PRItem[]
+  approvals     Approval[]
+  order         PurchaseOrder?
+}
+
+model PRItem {
+  id          Int             @id @default(autoincrement())
+  prId        Int
+  pr          PurchaseRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  unitPrice   Decimal         @db.Decimal(12, 2)
+}
+
+model Approval {
+  id         Int             @id @default(autoincrement())
+  prId       Int
+  pr         PurchaseRequest @relation(fields: [prId], references: [id])
+  approverId Int
+  approver   User            @relation(fields: [approverId], references: [id])
+  decision   Decision
+  comment    String?
+  decidedAt  DateTime        @default(now())
+}
+
+model PurchaseOrder {
+  id       Int             @id @default(autoincrement())
+  prId     Int             @unique
+  pr       PurchaseRequest @relation(fields: [prId], references: [id])
+  vendorId Int
+  vendor   Vendor          @relation(fields: [vendorId], references: [id])
+  poNumber String          @unique
+  status   POStatus        @default(ISSUED)
+  issuedAt DateTime        @default(now())
+}
+
+model AuditLog {
+  id       Int      @id @default(autoincrement())
+  actorId  Int?
+  actor    User?    @relation(fields: [actorId], references: [id])
+  action   String
+  entity   String
+  entityId Int
+  at       DateTime @default(now())
+}

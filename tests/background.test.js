@@ -74,22 +74,27 @@ describe("Phase 9 background service boundary", () => {
     await stop();
   });
 
-  it("exposes a health and readiness endpoint for the notification service", async () => {
+  it("exposes a health and readiness endpoint for each standalone service", async () => {
+    const aiService = require("../services/ai-service");
     const notificationService = require("../services/notification-service");
 
+    const aiServer = await aiService.startServer(0);
     const notificationRuntime =
       await notificationService.startNotificationService({
         port: 0,
       });
 
+    const aiPort = aiServer.address().port;
     const notificationPort = notificationRuntime.server.address().port;
 
-    const notificationHealth = await fetch(
-      `http://127.0.0.1:${notificationPort}/health`,
-    );
+    const [aiHealth, notificationHealth] = await Promise.all([
+      fetch(`http://127.0.0.1:${aiPort}/health`),
+      fetch(`http://127.0.0.1:${notificationPort}/health`),
+    ]);
 
+    expect(aiHealth.status).toBe(200);
     expect(notificationHealth.status).toBe(200);
 
-    await notificationRuntime.stop();
+    await Promise.all([aiServer.close(), notificationRuntime.stop()]);
   });
 });

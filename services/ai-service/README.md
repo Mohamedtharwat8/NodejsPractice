@@ -1,6 +1,6 @@
 # AI service
 
-This directory is the Phase 9 placeholder for the LLM-backed service that will eventually handle drafting, recommendations and spend summaries.
+This directory holds the Phase 10 LLM-backed service that handles drafting, recommendations and spend summaries.
 
 ## Current status
 

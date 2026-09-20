@@ -2,7 +2,7 @@
 
 A multi-tenant procure-to-pay platform: companies (tenants) raise purchase requests, get them approved, and issue purchase orders to vendors. It is also a hands-on project for a full-stack Angular + Node.js skill set (see the coverage matrix below).
 
-**Status:** the multi-tenant, versioned and documented core API (phases 1-8) is implemented. Phases 9-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
+**Status:** phases 1-10 are implemented and phase 11 is in progress. The Angular client now includes authentication, a role-aware responsive shell, dashboard, request list, and a reactive request form with AI-assisted justification drafting. Phases 12-13 remain planned.
 
 ## Business Requirements (BRD)
 
@@ -71,9 +71,9 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 6. Query optimisation and cursor pagination — done
 7. MongoDB audit trail — done
 8. Background jobs and notifications — done
-9. Extract microservices
-10. AI features
-11. Angular client
+9. Extract microservices — done
+10. AI features — done
+11. Angular client — in progress
 12. Docker, docker-compose, GitHub Actions
 13. Process: Jira-style backlog, conventional commits, PR template
 
@@ -130,6 +130,14 @@ State changes publish domain events that background jobs turn into in-app notifi
 - **Webhooks:** tenant admins set a URL with `PUT /settings/webhook`; the response shows the signing secret once. Each call is a JSON POST with `X-Event-Id`, `X-Event-Type`, `X-Timestamp`, `X-Request-Id` and `X-Signature: sha256=<hex>`, an HMAC-SHA256 of `"<timestamp>.<raw body>"` with the secret. Receivers should check the signature, reject old timestamps and dedupe on the event id. URLs must be https and must not point at private, local or link-local addresses; the check looks at the hostname only, so also restrict outbound traffic at the network level in production. `ALLOW_INSECURE_WEBHOOKS=1` lifts the check for local development.
 - **Tracing:** the request id is stored with the event and comes back on the job, the webhook call and any audit event the job writes.
 - **Running it:** the API process keeps only the audit drain beside the HTTP server; the notification relay and worker move into the separate `notification-service`. A legacy local run can temporarily re-enable the old behaviour with `ENABLE_LEGACY_NOTIFICATION_WORKER=1`.
+
+### Extracted services and AI (phases 9-10)
+The notification relay/worker and AI runtime are independently runnable from `services/`. Both expose `/health` and `/ready`, have graceful shutdown, Dockerfile stubs, and share validated payload contracts from `packages/contracts`.
+
+The AI service provides justification drafting, vendor recommendations, and spend summaries. Requests require a signed tenant token outside tests. Prompts are versioned; calls have timeout/retry handling, validated structured output, a Redis-backed monthly tenant cap (with a local development fallback), and `AiInteraction` usage records in MongoDB. If `AI_API_KEY` is unset, a deterministic local provider supports development; provider failure never blocks manual entry. Suggestions return an `interactionId`, and `POST /interactions/:id/accept` records when a user keeps one.
+
+### Angular client (phase 11, in progress)
+The standalone Angular 22 app is in `client/`. Run the API and AI service, then `npm run start:client`; its development proxy routes `/api` and `/ai` to the local services. The delivered first slice includes login, role guards, token/401 interception, responsive navigation, the dashboard, live request listing, and a reactive request form with a validated dynamic line-item array and AI drafting. Approval, vendor, order, and audit routes are protected and scaffolded for the next slice.
 
 ### API versioning and errors
 Business endpoints live under `/api/v1`; `/health` and `/docs` are unversioned. Every response carries `X-API-Version`. A deprecated version keeps working for at least six months and answers with `Deprecation`, `Sunset` and `Link: <successor>; rel="successor-version"` headers (registry in [src/config/versions.js](src/config/versions.js)).

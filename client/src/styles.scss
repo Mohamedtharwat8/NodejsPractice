@@ -1,0 +1,31 @@
+:root {
+  --ink-950: #14231f; --ink-700: #43544e; --ink-500: #6f7f79;
+  --paper: #f5f4ee; --surface: #fffefa; --line: #dcded5;
+  --brand: #176b52; --brand-dark: #0d4a38; --brand-soft: #dff1e8;
+  --red: #a43d3d; --shadow: 0 18px 45px rgb(20 35 31 / 8%);
+  color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink-950); background: var(--paper);
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body { margin: 0; background: var(--paper); }
+button, input, textarea, select { font: inherit; }
+a { color: inherit; }
+.eyebrow { margin: 0 0 .45rem; color: var(--brand); font-size: .75rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.page-title { margin: 0; font: 400 clamp(2rem, 4vw, 3rem)/1 Georgia, serif; }
+.muted { color: var(--ink-500); }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 42px; padding: .7rem 1rem; border: 1px solid transparent; border-radius: .65rem; background: var(--brand); color: white; font-weight: 750; text-decoration: none; cursor: pointer; }
+.button:hover { background: var(--brand-dark); }
+.button:disabled { opacity: .5; cursor: not-allowed; }
+.button.secondary { border-color: var(--line); background: var(--surface); color: var(--ink-950); }
+.button.ghost { background: transparent; color: var(--brand-dark); }
+.field { display: grid; gap: .45rem; }
+.field label { font-size: .82rem; font-weight: 750; }
+.field input, .field textarea, .field select { width: 100%; border: 1px solid #cbd0c7; border-radius: .6rem; padding: .72rem .8rem; background: white; color: var(--ink-950); outline: none; }
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgb(23 107 82 / 12%); }
+.field .error { color: var(--red); font-size: .75rem; }
+.panel { border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); box-shadow: var(--shadow); }
+.status { display: inline-flex; padding: .28rem .55rem; border-radius: 999px; background: #eceee8; font-size: .72rem; font-weight: 800; }
+.status.approved { background: var(--brand-soft); color: var(--brand-dark); }
+.status.submitted { background: #fff0d9; color: #81501b; }
+.status.rejected { background: #f8e3e3; color: #862f2f; }

@@ -10,6 +10,8 @@
     "start": "node src/server.js",
     "start:notification-service": "node services/notification-service/index.js",
     "start:ai-service": "node services/ai-service/index.js",
+    "start:client": "npm --prefix client start",
+    "build:client": "npm --prefix client run build",
     "dev": "nodemon src/server.js",
     "test": "jest --runInBand",
     "db:migrate": "prisma migrate dev",
@@ -20,6 +22,9 @@
     "explain": "node scripts/explain.js"
   },
   "jest": {
+    "testPathIgnorePatterns": [
+      "<rootDir>/client/"
+    ],
     "setupFilesAfterEnv": [
       "<rootDir>/tests/setup.js"
     ]

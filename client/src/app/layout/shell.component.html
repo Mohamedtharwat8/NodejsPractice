@@ -1,0 +1,18 @@
+<div class="shell">
+  <aside class="sidebar" [class.open]="menuOpen()">
+    <a class="brand" routerLink="/dashboard" (click)="menuOpen.set(false)"><span class="brand-mark">P</span><span><strong>Procurely</strong><small>Purchase operations</small></span></a>
+    <nav aria-label="Main navigation">
+      <a routerLink="/dashboard" routerLinkActive="active" (click)="menuOpen.set(false)">Overview</a>
+      <a routerLink="/requests" routerLinkActive="active" (click)="menuOpen.set(false)">Requests</a>
+      @if (auth.hasRole(['APPROVER', 'ADMIN'])) { <a routerLink="/approvals" routerLinkActive="active">Approvals <span>4</span></a> }
+      <a routerLink="/vendors" routerLinkActive="active">Vendors</a>
+      @if (auth.hasRole(['PROCUREMENT', 'ADMIN'])) { <a routerLink="/orders" routerLinkActive="active">Purchase orders</a> }
+      @if (auth.hasRole(['ADMIN'])) { <a routerLink="/audit" routerLinkActive="active">Audit trail</a> }
+    </nav>
+    <div class="profile"><span class="avatar">{{ initials() }}</span><span><strong>{{ auth.user()?.name }}</strong><small>{{ auth.user()?.role }}</small></span><button type="button" title="Sign out" aria-label="Sign out" (click)="auth.logout()">↗</button></div>
+  </aside>
+  <section class="workspace">
+    <header class="topbar"><button class="menu" type="button" aria-label="Toggle navigation" (click)="menuOpen.update((value) => !value)">☰</button><span class="context">Workspace</span><span class="system-ok"><i></i> All systems normal</span></header>
+    <main><router-outlet /></main>
+  </section>
+</div>

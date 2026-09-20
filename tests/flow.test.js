@@ -115,3 +115,33 @@ describe('business rules', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('BR4 and BR8', () => {
+  let approver, admin, procurement;
+  beforeAll(async () => {
+    [approver, admin, procurement] = await Promise.all(
+      ['approver@example.com', 'admin@example.com', 'procurement@example.com'].map((e) => login(e)));
+  });
+
+  it.each([['APPROVER', () => approver], ['ADMIN', () => admin]])('BR4: a %s cannot approve or reject their own request', async (_role, token) => {
+    const created = await request(app).post('/api/v1/purchase-requests').set(as(token()))
+      .send({ title: 'Own request', items: [{ description: 'Desk', quantity: 1, unitPrice: 300 }] });
+    const id = created.body.id;
+    await request(app).post(`/api/v1/purchase-requests/${id}/submit`).set(as(token()));
+    for (const action of ['approve', 'reject']) {
+      const res = await request(app).post(`/api/v1/purchase-requests/${id}/${action}`).set(as(token()));
+      expect(res.status).toBe(403);
+    }
+    const after = await request(app).get(`/api/v1/purchase-requests/${id}`).set(as(token()));
+    expect(after.body.status).toBe('SUBMITTED'); // no decision was recorded
+  });
+
+  it('BR8: deleting a vendor deactivates it and keeps the record', async () => {
+    const vendor = await request(app).post('/api/v1/vendors').set(as(procurement)).send({ name: `Keep me ${Date.now()}` });
+    const res = await request(app).delete(`/api/v1/vendors/${vendor.body.id}`).set(as(procurement));
+    expect(res.status).toBeLessThan(300);
+    const after = await request(app).get(`/api/v1/vendors/${vendor.body.id}`).set(as(procurement));
+    expect(after.status).toBe(200);
+    expect(after.body.status).toBe('INACTIVE');
+  });
+});

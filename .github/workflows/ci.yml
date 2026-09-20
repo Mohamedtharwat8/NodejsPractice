@@ -47,8 +47,24 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx prisma migrate deploy
+      - run: npm run db:seed
       - run: npm run lint
       - run: npm test
+
+  security:
+    name: Dependency audit and secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # Critical findings block the build. The known high findings (Prisma CLI chain) are accepted in docs/security.md.
+      - run: npm audit --omit=dev --audit-level=critical
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: client
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
 
   client:
     name: Build, unit and e2e (client)
@@ -70,7 +86,7 @@ jobs:
 
   images:
     name: Build images${{ startsWith(github.ref, 'refs/tags/v') && ' and publish' || '' }}
-    needs: [backend, client]
+    needs: [backend, client, security]
     runs-on: ubuntu-latest
     permissions: { contents: read, packages: write }
     strategy:

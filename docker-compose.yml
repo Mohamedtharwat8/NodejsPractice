@@ -6,7 +6,8 @@ x-app-env: &app-env
   DATABASE_URL: postgresql://postgres:postgres@postgres:5432/procurement?schema=public
   REDIS_URL: redis://redis:6379
   MONGODB_URL: mongodb://mongo:27017/procurement_audit
-  JWT_SECRET: ${JWT_SECRET:-change-me}
+  # Development default only. The API refuses placeholder secrets in production, so set a real one before deploying.
+  JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-set-your-own}
 
 services:
   postgres:
@@ -60,7 +61,8 @@ services:
     environment:
       <<: *app-env
       PORT: 3000
-      PLATFORM_API_KEY: ${PLATFORM_API_KEY:-change-me-platform-key}
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY:-dev-only-platform-key-set-your-own}
+      TRUST_PROXY: 1
     ports:
       - "3000:3000"
     depends_on:

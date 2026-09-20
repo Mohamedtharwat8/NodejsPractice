@@ -21,7 +21,8 @@
     "db:load:clean": "node prisma/seed-load.js --clean",
     "bench": "node scripts/bench.js",
     "explain": "node scripts/explain.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "load:flow": "node scripts/load-flow.js"
   },
   "jest": {
     "testPathIgnorePatterns": [

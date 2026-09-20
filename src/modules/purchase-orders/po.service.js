@@ -18,6 +18,7 @@ async function create(actorId, { prId, vendorId }) {
     if (vendor.status !== 'ACTIVE') throw new HttpError(409, 'Vendor is not active');
 
     const year = new Date().getFullYear();
+    await repo.lockNumbering(tx, year);
     const seq = (await repo.countForYear(tx, year)) + 1; // BR7
     const po = await repo.create(tx, { prId, vendorId, poNumber: `PO-${year}-${String(seq).padStart(4, '0')}` });
     await audit(actorId, 'CREATE', 'PurchaseOrder', po.id, tx, {

@@ -3,6 +3,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
+const { corsOrigins, trustProxy } = require('./config/env');
 const requestId = require('./middleware/requestId');
 const { notFound, errorHandler } = require('./middleware/error');
 const { buildSpec } = require('./docs/openapi');
@@ -12,9 +13,11 @@ const { status: queueStatus } = require('./infra/queue');
 
 const app = express();
 
+if (trustProxy) app.set('trust proxy', trustProxy);
 app.use(requestId);
 app.use(helmet());
-app.use(cors());
+// Open in development and tests; in production only origins in CORS_ORIGINS are allowed.
+app.use(cors(process.env.NODE_ENV === 'production' ? { origin: corsOrigins } : undefined));
 app.use(express.json());
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 

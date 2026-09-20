@@ -75,7 +75,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 10. AI features — done
 11. Angular client — done
 12. Docker, docker-compose, GitHub Actions — done
-13. Process: Jira-style backlog, conventional commits, PR template
+13. Hardening, process and release — in progress (all but BR9 approval limits, see [docs/backlog.md](docs/backlog.md))
 
 Architecture decisions for each phase (tenancy model, which store owns what, service boundaries) are in `plans/02-full-stack-roadmap.md`.
 
@@ -188,3 +188,10 @@ Per-service settings are documented in `services/*/.env.example`.
 ## CI
 
 `.github/workflows/ci.yml` runs on every pull request: ESLint and the Jest suite against Postgres, Redis and MongoDB service containers; the client build, unit tests and Playwright smoke test; an image build for the api, ai-service, notification-service and client; and a `docker compose up --wait` smoke test. Pushing a `v*` tag also publishes the images to GHCR. Make the checks required in branch protection so a failing test blocks the merge.
+
+## Release documents
+- [CHANGELOG.md](CHANGELOG.md): release notes and known limitations
+- [docs/runbook.md](docs/runbook.md): health checks, deploy and rollback, backup and restore, incident table
+- [docs/security.md](docs/security.md): authorisation matrix, review results, dependency audit
+- [docs/load-test.md](docs/load-test.md): `npm run load:flow` results and what it found
+- [docs/backlog.md](docs/backlog.md): epics and stories per phase

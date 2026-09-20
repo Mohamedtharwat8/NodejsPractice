@@ -9,6 +9,10 @@ export type Approval = {
   "decidedAt"?: string;
 };
 
+export type ApprovalSettings = {
+  "threshold"?: string;
+};
+
 export type AuditEvent = {
   "id"?: string;
   "at"?: string;
@@ -143,7 +147,13 @@ export type User = {
   "name"?: string;
   "email"?: string;
   "role"?: "REQUESTER" | "APPROVER" | "PROCUREMENT" | "ADMIN";
+  "approvalLimit"?: string;
   "createdAt"?: string;
+};
+
+export type UserApprovalLimit = {
+  "id"?: number;
+  "approvalLimit"?: string;
 };
 
 export type Vendor = {
@@ -168,5 +178,5 @@ export type WebhookSettings = {
   "secret"?: string;
 };
 
-export type ApiPath = "/audit" | "/auth/login" | "/auth/logout" | "/auth/me" | "/auth/register" | "/notifications" | "/notifications/read-all" | "/notifications/{id}/read" | "/platform/dead-letters" | "/platform/dead-letters/{id}/retry" | "/platform/tenants" | "/platform/tenants/{id}/status" | "/purchase-orders" | "/purchase-orders/{id}" | "/purchase-orders/{id}/cancel" | "/purchase-requests" | "/purchase-requests/{id}" | "/purchase-requests/{id}/approve" | "/purchase-requests/{id}/reject" | "/purchase-requests/{id}/submit" | "/settings/webhook" | "/vendors" | "/vendors/{id}";
+export type ApiPath = "/audit" | "/auth/login" | "/auth/logout" | "/auth/me" | "/auth/register" | "/notifications" | "/notifications/read-all" | "/notifications/{id}/read" | "/platform/dead-letters" | "/platform/dead-letters/{id}/retry" | "/platform/tenants" | "/platform/tenants/{id}/status" | "/purchase-orders" | "/purchase-orders/{id}" | "/purchase-orders/{id}/cancel" | "/purchase-requests" | "/purchase-requests/{id}" | "/purchase-requests/{id}/approve" | "/purchase-requests/{id}/reject" | "/purchase-requests/{id}/submit" | "/settings/approval" | "/settings/approval/users/{id}" | "/settings/webhook" | "/vendors" | "/vendors/{id}";
 

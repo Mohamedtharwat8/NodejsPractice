@@ -18,17 +18,17 @@ First release of the multi-tenant procurement portal: request → approval → p
 ### Hardening in this release
 - Production refuses placeholder or short `JWT_SECRET` and `PLATFORM_API_KEY` values.
 - CORS is closed by default in production; `CORS_ORIGINS` opens named origins. `TRUST_PROXY` makes rate limits see the real client behind a proxy.
-- Per-endpoint authorisation matrix test covering all 30 routes and 4 roles.
+- Per-endpoint authorisation matrix test covering all 33 routes and 4 roles.
+- BR9 approval limits: admins set a tenant threshold (`PUT /settings/approval`) and per-user limits (at registration or `PUT /settings/approval/users/:id`). Approving above the threshold needs an approver whose limit covers the total (`403 APPROVAL_LIMIT_EXCEEDED`); rejecting is never limited and admins are exempt. With no threshold set, behaviour is unchanged. The client's admin page manages the threshold and sets a limit when creating an approver.
 - Fixed: concurrent purchase order creation could fail with `409 Already exists` because two orders were given the same number. Numbering is now serialised per tenant and year.
 - Fixed: the client returned 502 after the API container was recreated, because nginx cached the old address.
 
 ### Upgrade notes
-- No database migrations since the event and notification tables (`20260920180611_events_notifications`).
+- One additive migration, `approval_limits` (nullable `approvalThreshold` on Tenant and `approvalLimit` on User). Run `prisma migrate deploy` before starting the new API; existing behaviour is unchanged until a threshold is set.
 - Set `JWT_SECRET` (and `PLATFORM_API_KEY` if you use platform routes) to real values before running with `NODE_ENV=production`, or the API exits at start.
 - Docker-based deployments that relied on the open CORS default must list their browser origins in `CORS_ORIGINS`.
 
 ### Known limitations
-- **BR9 (approval limits) is not implemented.** Any approver can approve any amount. The BRD lists it as a business rule, so the release acceptance criterion "every business rule has an automated test" is met for BR1-BR8 and BR10 only. Tracked as P13-S6 in `docs/backlog.md`.
 - Purchase order issuing is serialised per tenant; one tenant issuing about 25 orders at the same instant sees p95 around 470 ms.
 - `npm audit` reports 3 high findings in the Prisma CLI's dependency chain; accepted, see `docs/security.md`.
 - Invoicing, payments, RFQ/bidding, goods receipt, SSO and a mobile app are out of scope.

@@ -24,7 +24,9 @@ export class ApiService {
   listNotifications(unread?: boolean) { return this.http.get<Page<Notification>>('/api/v1/notifications', { params: unread === undefined ? {} : { unread: String(unread) } }); }
   readNotification(id: number) { return this.http.post<Notification>(`/api/v1/notifications/${id}/read`, {}); }
   readAllNotifications() { return this.http.post<{ updated: number }>('/api/v1/notifications/read-all', {}); }
-  registerUser(input: { name: string; email: string; password: string; role: Role }) { return this.http.post<User>('/api/v1/auth/register', input); }
+  registerUser(input: { name: string; email: string; password: string; role: Role; approvalLimit?: number | null }) { return this.http.post<User>('/api/v1/auth/register', input); }
+  getApprovalThreshold() { return this.http.get<{ threshold: number | null }>('/api/v1/settings/approval'); }
+  saveApprovalThreshold(threshold: number | null) { return this.http.put<{ threshold: number | null }>('/api/v1/settings/approval', { threshold }); }
   getWebhook() { return this.http.get<WebhookSettings>('/api/v1/settings/webhook'); }
   saveWebhook(url: string | null, rotateSecret = false) { return this.http.put<WebhookSettings>('/api/v1/settings/webhook', { url, rotateSecret }); }
   draftJustification(input: RequestInput) { return this.http.post<{ justification: string; interactionId: string }>('/ai/draft-justification', input); }

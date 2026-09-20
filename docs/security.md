@@ -9,7 +9,7 @@ Scope: the API, the two services, the client image and the pipeline. Findings ar
 | --- | --- |
 | `POST /auth/login` | anyone (rate limited) |
 | `GET /auth/me`, `POST /auth/logout`, notifications, vendor reads, request create/read/update/submit | any signed-in user (request visibility and DRAFT-only edits are enforced in the service, BR3) |
-| `POST /auth/register`, `/audit`, `/settings/*` | ADMIN |
+| `POST /auth/register`, `/audit`, `/settings/*` (webhook, approval threshold, per-user approval limits) | ADMIN |
 | Vendor create/update/delete | PROCUREMENT, ADMIN |
 | Request approve/reject | APPROVER, ADMIN |
 | Purchase orders (all) | PROCUREMENT, ADMIN |

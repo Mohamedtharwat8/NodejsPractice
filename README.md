@@ -75,7 +75,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 10. AI features — done
 11. Angular client — done
 12. Docker, docker-compose, GitHub Actions — done
-13. Hardening, process and release — in progress (all but BR9 approval limits, see [docs/backlog.md](docs/backlog.md))
+13. Hardening, process and release — done
 
 Architecture decisions for each phase (tenancy model, which store owns what, service boundaries) are in `plans/02-full-stack-roadmap.md`.
 
@@ -153,6 +153,8 @@ The OpenAPI spec is built from the same zod schemas the routes validate with ([s
 | `PATCH /platform/tenants/:id/status` (`ACTIVE` or `SUSPENDED`; header `x-platform-key`) | platform owner |
 | `GET /notifications` (`unread`, `pageSize`, `cursor`), `POST /notifications/read-all`, `POST /notifications/:id/read` | any (own notifications) |
 | `GET /settings/webhook`, `PUT /settings/webhook` (`url` or `null`, `rotateSecret`) | ADMIN |
+| `GET /settings/approval`, `PUT /settings/approval` (`threshold` or `null`) | ADMIN |
+| `PUT /settings/approval/users/:id` (`approvalLimit` or `null`) | ADMIN |
 | `GET /platform/dead-letters`, `POST /platform/dead-letters/:id/retry` (header `x-platform-key`) | platform owner |
 | `GET /audit` (query: `entity`, `entityId`, `actorId`, `action`, `from`, `to`, `pageSize`, `cursor`) | ADMIN |
 | `POST /auth/login` (body: `tenant`, `email`, `password`) | public |

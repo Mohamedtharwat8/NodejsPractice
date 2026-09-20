@@ -35,7 +35,7 @@ Jira-style: each epic is a delivery phase, each story is one deliverable from `p
 | | P13-S3 Load test of the main flow (found and fixed the PO numbering race) | M | Done |
 | | P13-S4 Runbook, backup and restore notes | S | Done |
 | | P13-S5 Backlog, PR template, release notes | S | Done |
-| | P13-S6 BR9 approval limits: schema (`approvalLimit` on user and tenant settings), check in approve, admin UI, tests | M | **Open** |
+| | P13-S6 BR9 approval limits: schema (`approvalLimit` on user and tenant settings), check in approve, admin UI, tests | M | Done |
 
 ## Ideas not scheduled
 - Per-tenant counter for PO numbers if one tenant ever needs more than a few orders per second (see `docs/load-test.md`).

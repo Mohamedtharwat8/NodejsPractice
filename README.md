@@ -129,7 +129,7 @@ State changes publish domain events that background jobs turn into in-app notifi
 - **Email:** `SMTP_URL` sends real mail. Without it messages are only built and logged, nothing leaves the process.
 - **Webhooks:** tenant admins set a URL with `PUT /settings/webhook`; the response shows the signing secret once. Each call is a JSON POST with `X-Event-Id`, `X-Event-Type`, `X-Timestamp`, `X-Request-Id` and `X-Signature: sha256=<hex>`, an HMAC-SHA256 of `"<timestamp>.<raw body>"` with the secret. Receivers should check the signature, reject old timestamps and dedupe on the event id. URLs must be https and must not point at private, local or link-local addresses; the check looks at the hostname only, so also restrict outbound traffic at the network level in production. `ALLOW_INSECURE_WEBHOOKS=1` lifts the check for local development.
 - **Tracing:** the request id is stored with the event and comes back on the job, the webhook call and any audit event the job writes.
-- **Running it:** the API process starts the relay and a worker next to the HTTP server. Phase 9 moves the worker into a separate service.
+- **Running it:** the API process keeps only the audit drain beside the HTTP server; the notification relay and worker move into the separate `notification-service`. A legacy local run can temporarily re-enable the old behaviour with `ENABLE_LEGACY_NOTIFICATION_WORKER=1`.
 
 ### API versioning and errors
 Business endpoints live under `/api/v1`; `/health` and `/docs` are unversioned. Every response carries `X-API-Version`. A deprecated version keeps working for at least six months and answers with `Deprecation`, `Sunset` and `Link: <successor>; rel="successor-version"` headers (registry in [src/config/versions.js](src/config/versions.js)).

@@ -7,6 +7,7 @@ const { platformApiKey } = require('../../config/env');
 const { HttpError } = require('../../middleware/error');
 const validate = require('../../middleware/validate');
 const schema = require('./tenants.schema');
+const tenantStatus = require('./tenant-status');
 
 // Platform-owner access: a shared secret, not a tenant user. Disabled unless PLATFORM_API_KEY is set.
 function platformOnly(req, res, next) {
@@ -36,6 +37,15 @@ router.post('/', validate(schema.create), async (req, res) => {
     return { tenant, admin: { id: user.id, name: user.name, email: user.email, role: user.role } };
   });
   res.status(201).json(result);
+});
+
+// Suspending blocks logins and every API call of the tenant at once (the status check is cached for
+// at most 60s, and invalidated here). Reactivating reverses it.
+router.patch('/:id/status', validate(schema.setStatus), async (req, res) => {
+  const id = Number(req.params.id);
+  const tenant = await prisma.tenant.update({ where: { id }, data: { status: req.body.status } });
+  await tenantStatus.invalidate(id);
+  res.json(tenant);
 });
 
 module.exports = router;

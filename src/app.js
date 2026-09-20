@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 const { notFound, errorHandler } = require('./middleware/error');
 const { buildSpec } = require('./docs/openapi');
+const { status: redisStatus } = require('./infra/redis');
 
 const app = express();
 
@@ -13,7 +14,8 @@ app.use(cors());
 app.use(express.json());
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+// Redis is optional, so its state is reported but never makes the service unhealthy.
+app.get('/health', (req, res) => res.json({ status: 'ok', redis: redisStatus() }));
 
 const spec = buildSpec();
 app.get('/docs/openapi.json', (req, res) => res.json(spec));

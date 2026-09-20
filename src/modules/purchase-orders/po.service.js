@@ -2,9 +2,10 @@ const prisma = require('../../db/prisma');
 const { HttpError } = require('../../middleware/error');
 const audit = require('../audit');
 const repo = require('./po.repository');
+const prCache = require('../purchase-requests/pr.cache');
 
 async function create(actorId, { prId, vendorId }) {
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const pr = await repo.findRequest(tx, prId);
     if (!pr) throw new HttpError(404, 'Purchase request not found');
     if (pr.status !== 'APPROVED') throw new HttpError(409, 'Request must be APPROVED');
@@ -20,6 +21,8 @@ async function create(actorId, { prId, vendorId }) {
     await audit(actorId, 'CREATE', 'PurchaseOrder', po.id, tx);
     return po;
   });
+  await prCache.invalidate(prId); // the cached request embeds its order
+  return created;
 }
 
 async function list({ status, page, pageSize }) {
@@ -33,7 +36,9 @@ const get = (id) => repo.findById(id);
 async function cancel(actorId, id) {
   if (!(await repo.cancelIfIssued(id))) throw new HttpError(409, 'Order not found or not ISSUED');
   await audit(actorId, 'CANCEL', 'PurchaseOrder', id);
-  return repo.findById(id);
+  const po = await repo.findById(id);
+  await prCache.invalidate(po.prId);
+  return po;
 }
 
 module.exports = { create, list, get, cancel };

@@ -2,7 +2,7 @@
 
 A multi-tenant procure-to-pay platform: companies (tenants) raise purchase requests, get them approved, and issue purchase orders to vendors. It is also a hands-on project for a full-stack Angular + Node.js skill set (see the coverage matrix below).
 
-**Status:** the multi-tenant core API (phases 1-3) is implemented. Phases 4-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
+**Status:** the multi-tenant, versioned and documented core API (phases 1-5) is implemented. Phases 6-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
 
 ## Business Requirements (BRD)
 
@@ -55,9 +55,9 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 | Microservices design | Phase 9: `notification-service`, `ai-service` |
 | PostgreSQL schema design, query optimisation | Prisma schema (done); indexes and `EXPLAIN` in phase 6 |
 | MongoDB | Phase 7: audit trail |
-| Redis caching | Phase 5 (cache, rate limit, queues) |
+| Redis caching | Phase 5 (done: cache, rate limit, revocation); queues in phase 8 |
 | Multi-tenant SaaS | Phase 3 (done) |
-| API versioning and documentation | Phase 4 |
+| API versioning and documentation | Phase 4 (done) |
 | AI/LLM integration | Phase 10 |
 | Git, CI/CD, Docker | Phases 12-13 |
 | Jira, Agile | Phase 13: epics/stories per phase |
@@ -65,9 +65,9 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 ## Roadmap
 1. Foundation and schema — done
 2. Auth, vendors, purchase requests, approvals, purchase orders — done
-3. Multi-tenancy
-4. API versioning + OpenAPI docs
-5. Redis caching and rate limiting
+3. Multi-tenancy — done
+4. API versioning + OpenAPI docs — done
+5. Redis caching and rate limiting — done
 6. Query optimisation and cursor pagination
 7. MongoDB audit trail
 8. Background jobs and notifications
@@ -81,21 +81,42 @@ Architecture decisions for each phase (tenancy model, which store owns what, ser
 
 ## Running what exists today
 1. `npm install`
-2. `docker compose up -d --wait postgres` (PostgreSQL on host port 55432; 5432-5433 are reserved by Windows on some machines).
-3. Copy `.env.example` to `.env` and set `JWT_SECRET`.
+2. `docker compose up -d --wait` (PostgreSQL on host port 55432 and Redis on 56379; the default ports fall in ranges Windows reserves on some machines).
+3. Copy `.env.example` to `.env` and set `JWT_SECRET`. `REDIS_URL` is optional (see below).
 4. `npm run db:migrate`, then `npm run db:seed`.
-5. `npm run dev`, then `GET /health`.
+5. `npm run dev`, then `GET /health`. Interactive API docs: <http://localhost:3000/docs> (raw spec at `/docs/openapi.json`).
 
 Seeded tenants `acme` and `globex`, each with users (password `Password123!`): `admin@`, `requester@`, `approver@`, `procurement@` `example.com`. Log in with the tenant slug, e.g. `{"tenant":"acme","email":"admin@example.com","password":"Password123!"}`.
 
 ### Multi-tenancy
 Shared database, shared schema: every business table carries `tenantId`. The JWT carries the tenant (`tid`); the auth middleware stores it in an `AsyncLocalStorage` context, and a Prisma client extension ([src/db/prisma.js](src/db/prisma.js)) adds `tenantId` to every query and fails closed when there is no tenant. Avoid raw SQL (`$queryRaw`), which bypasses that filter. Cross-tenant ids return 404. Suspending a tenant blocks new logins; existing tokens live until they expire (8h by default).
 
-### Endpoints (current, unversioned)
+### Redis (phase 5)
+Redis holds only data that can be lost or rebuilt, so the API works without it (`REDIS_URL` unset or Redis down) and `/health` just reports `redis: up | down | disabled`.
+
+| Use | Behaviour | If Redis is unavailable |
+| --- | --- | --- |
+| Read cache | Vendor lists and details (5 min) and request details (1 min), keyed `t:{tenantId}:...`; every write invalidates. Rules that decide on a request's state (edit, submit, approve, PO creation) always read the database. | Reads go to the database |
+| Login rate limit | 20 attempts per IP per 15 min (`LOGIN_RATE_LIMIT`), counted in Redis so all API instances share it; answers `429 RATE_LIMITED` | In-memory limiter per process |
+| Logout | `POST /auth/logout` revokes the token's `jti` until it expires | Logout answers `503`; tokens already revoked are honoured again until they expire (`JWT_EXPIRES_IN`) |
+| Tenant status | Suspended tenants are blocked on every request (status cached 60s, invalidated on change) | Read from the database |
+
+Set `CACHE_DEBUG=1` to log every cache hit and miss.
+
+### API versioning and errors
+Business endpoints live under `/api/v1`; `/health` and `/docs` are unversioned. Every response carries `X-API-Version`. A deprecated version keeps working for at least six months and answers with `Deprecation`, `Sunset` and `Link: <successor>; rel="successor-version"` headers (registry in [src/config/versions.js](src/config/versions.js)).
+
+Errors always look like `{ "error": { "code", "message", "details"? } }` with codes `VALIDATION_ERROR`, `INVALID_JSON`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `INTERNAL_ERROR`, `SERVICE_UNAVAILABLE`.
+
+The OpenAPI spec is built from the same zod schemas the routes validate with ([src/docs/openapi.js](src/docs/openapi.js)); a contract test fails if a route is undocumented or a documented route is missing.
+
+### Endpoints (paths relative to `/api/v1`)
 | Method & path | Roles |
 | --- | --- |
 | `POST /platform/tenants` (creates tenant + first admin; header `x-platform-key`, needs `PLATFORM_API_KEY`) | platform owner |
+| `PATCH /platform/tenants/:id/status` (`ACTIVE` or `SUSPENDED`; header `x-platform-key`) | platform owner |
 | `POST /auth/login` (body: `tenant`, `email`, `password`) | public |
+| `POST /auth/logout` (revokes the current token) | any |
 | `POST /auth/register` | ADMIN |
 | `GET /auth/me` | any |
 | `GET /vendors`, `GET /vendors/:id` | any |
@@ -108,4 +129,4 @@ Shared database, shared schema: every business table carries `tenantId`. The JWT
 List endpoints accept `status`, `page`, `pageSize`.
 
 ### Tests
-`npm test` needs the migrated and seeded database from `.env`.
+`npm test` needs the migrated and seeded database and Redis from `.env` (`docker compose up -d --wait`). `tests/redis-down.test.js` covers the no-Redis behaviour.

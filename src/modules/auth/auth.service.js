@@ -1,5 +1,7 @@
+const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { revoke } = require('../../infra/revocation');
 const { jwtSecret, jwtExpiresIn } = require('../../config/env');
 const { HttpError } = require('../../middleware/error');
 const { runInTenant } = require('../../db/tenantContext');
@@ -19,9 +21,17 @@ async function login({ tenant: slug, email, password }) {
     const token = jwt.sign({ role: user.role, tid: tenant.id }, jwtSecret, {
       subject: String(user.id),
       expiresIn: jwtExpiresIn,
+      jwtid: crypto.randomUUID(), // lets logout revoke this one token
     });
     return { token, user: publicUser(user) };
   });
+}
+
+// Revokes the presented token until it would have expired. Needs Redis; says so when it is unavailable.
+async function logout({ jti, exp }) {
+  if (!(await revoke(jti, exp))) {
+    throw new HttpError(503, 'Logout is temporarily unavailable', 'SERVICE_UNAVAILABLE');
+  }
 }
 
 // Runs in the calling admin's tenant context, so the new user joins the admin's tenant.
@@ -36,4 +46,4 @@ async function me(id) {
   return publicUser(user);
 }
 
-module.exports = { login, register, me };
+module.exports = { login, logout, register, me };

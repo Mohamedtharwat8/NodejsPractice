@@ -1,17 +1,17 @@
 const router = require('express').Router();
-const rateLimit = require('express-rate-limit');
 const { authenticate, requireRole } = require('../../middleware/auth');
+const loginLimiter = require('../../middleware/loginLimiter');
 const validate = require('../../middleware/validate');
 const service = require('./auth.service');
 const schema = require('./auth.schema');
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: process.env.NODE_ENV === 'test' ? 1000 : 20,
-});
-
 router.post('/login', loginLimiter, validate(schema.login), async (req, res) => {
   res.json(await service.login(req.body));
+});
+
+router.post('/logout', authenticate, async (req, res) => {
+  await service.logout(req.user);
+  res.status(204).end();
 });
 
 // Only admins can create users (any role).

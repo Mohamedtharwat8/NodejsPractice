@@ -42,7 +42,10 @@ const components = {
           properties: {
             code: {
               type: 'string',
-              enum: ['VALIDATION_ERROR', 'INVALID_JSON', 'UNAUTHENTICATED', 'FORBIDDEN', 'NOT_FOUND', 'CONFLICT', 'INTERNAL_ERROR'],
+              enum: [
+                'VALIDATION_ERROR', 'INVALID_JSON', 'UNAUTHENTICATED', 'FORBIDDEN', 'NOT_FOUND', 'CONFLICT',
+                'RATE_LIMITED', 'INTERNAL_ERROR', 'SERVICE_UNAVAILABLE',
+              ],
             },
             message: { type: 'string' },
             details: { description: 'Validation issues (VALIDATION_ERROR only).', type: 'array', items: { type: 'object' } },
@@ -119,8 +122,15 @@ const operations = [
   { method: 'post', path: '/platform/tenants', tag: 'Platform', summary: 'Create a tenant with its first admin',
     security: 'platformKey', body: tenants.create, ok: [201, 'TenantCreated'], errors: [400, 401, 409] },
 
-  { method: 'post', path: '/auth/login', tag: 'Auth', summary: 'Log in to a tenant',
-    security: null, body: auth.login, ok: [200, 'LoginResponse'], errors: [400, 401, 403] },
+  { method: 'patch', path: '/platform/tenants/{id}/status', tag: 'Platform',
+    summary: 'Suspend or reactivate a tenant (blocks logins and API calls)', security: 'platformKey',
+    body: tenants.setStatus, ok: [200, 'Tenant'], errors: [400, 401, 404] },
+
+  { method: 'post', path: '/auth/login', tag: 'Auth', summary: 'Log in to a tenant (rate limited per IP)',
+    security: null, body: auth.login, ok: [200, 'LoginResponse'], errors: [400, 401, 403, 429] },
+  { method: 'post', path: '/auth/logout', tag: 'Auth', summary: 'Revoke the current token',
+    description: 'Needs Redis; answers 503 if the revocation cannot be recorded.',
+    ok: [204, null], errors: [401, 503] },
   { method: 'post', path: '/auth/register', tag: 'Auth', summary: 'Create a user in your own tenant',
     roles: ['ADMIN'], body: auth.register, ok: [201, 'User'], errors: [400, 401, 403, 409] },
   { method: 'get', path: '/auth/me', tag: 'Auth', summary: 'Current user', ok: [200, 'User'], errors: [401] },
@@ -168,6 +178,7 @@ const operations = [
 const ERROR_TEXT = {
   400: 'Validation failed', 401: 'Missing or invalid credentials', 403: 'Role not allowed',
   404: 'Not found (also returned for another tenant\'s records)', 409: 'Invalid state for this action',
+  429: 'Too many requests', 503: 'Temporary dependency outage',
 };
 
 function buildOperation(op) {
@@ -176,7 +187,8 @@ function buildOperation(op) {
     ...(op.path.includes('{id}') ? [idParam] : []),
     ...(op.query ? queryParams(op.query) : []),
   ];
-  const description = op.roles ? `Allowed roles: ${op.roles.join(', ')}.` : undefined;
+  const description = [op.description, op.roles && `Allowed roles: ${op.roles.join(', ')}.`]
+    .filter(Boolean).join(' ') || undefined;
   const security = op.security === null ? [] : [{ [op.security || 'bearerAuth']: [] }];
 
   return {
@@ -187,7 +199,9 @@ function buildOperation(op) {
     ...(parameters.length && { parameters }),
     ...(op.body && { requestBody: { required: true, content: { 'application/json': { schema: toJson(op.body) } } } }),
     responses: {
-      [okStatus]: { description: 'Success', content: { 'application/json': { schema: ref(okSchema) } } },
+      [okStatus]: okSchema
+        ? { description: 'Success', content: { 'application/json': { schema: ref(okSchema) } } }
+        : { description: 'Success, no content' },
       ...Object.fromEntries(op.errors.map((s) => [s, {
         description: ERROR_TEXT[s], content: { 'application/json': { schema: ref('Error') } },
       }])),

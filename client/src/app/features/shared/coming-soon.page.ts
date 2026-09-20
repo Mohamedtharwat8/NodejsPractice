@@ -1,5 +1,0 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-@Component({ template: '<p class="eyebrow">Phase 11</p><h1 class="page-title">Approvals</h1><p class="muted">The role-aware route is in place. The approval queue is the next client slice.</p>', changeDetection: ChangeDetectionStrategy.OnPush }) export class ApprovalsPage {}
-@Component({ template: '<p class="eyebrow">Phase 11</p><h1 class="page-title">Vendors</h1><p class="muted">Vendor search and management are queued for the next client slice.</p>', changeDetection: ChangeDetectionStrategy.OnPush }) export class VendorsPage {}
-@Component({ template: '<p class="eyebrow">Phase 11</p><h1 class="page-title">Purchase orders</h1><p class="muted">Order issue and cancellation screens are queued for the next client slice.</p>', changeDetection: ChangeDetectionStrategy.OnPush }) export class OrdersPage {}
-@Component({ template: '<p class="eyebrow">Phase 11</p><h1 class="page-title">Audit trail</h1><p class="muted">Audit filters and event detail are queued for the next client slice.</p>', changeDetection: ChangeDetectionStrategy.OnPush }) export class AuditPage {}

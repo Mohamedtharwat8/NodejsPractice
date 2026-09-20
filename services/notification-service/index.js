@@ -62,14 +62,15 @@ function startNotificationService({
 }
 
 if (require.main === module) {
-  startNotificationService().then(() => {
+  let running;
+  startNotificationService().then((runtime) => {
+    running = runtime;
     console.log("notification-service: relay and worker started");
   });
 
   async function shutdown(signal) {
     console.log(`notification-service: shutting down (${signal})`);
-    const runtime = await startNotificationService();
-    await runtime.stop();
+    await running?.stop();
     process.exit(0);
   }
 

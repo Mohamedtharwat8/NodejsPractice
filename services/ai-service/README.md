@@ -1,10 +1,8 @@
 # AI service
 
-This directory holds the Phase 10 LLM-backed service that handles drafting, recommendations and spend summaries.
+This is the independently runnable LLM boundary for procurement assistance.
 
-## Current status
-
-The service is intentionally minimal so the repo can start isolating service boundaries without breaking the core API.
+It exposes signed, tenant-scoped endpoints for justification drafting, vendor recommendations, and spend summaries. The runtime validates shared contracts, versions prompts, retries with a timeout, checks a monthly tenant cap, validates model output, and records interaction metadata. With no provider key it uses a deterministic local fallback so core development remains available.
 
 ## Start
 
@@ -14,9 +12,12 @@ From the repo root:
 npm run start:ai-service
 ```
 
-## Planned responsibilities
+## Endpoints
 
-- expose a versioned HTTP API for AI tasks
-- handle prompt templates, retries and timeouts
-- log request metadata and tenant context
-- isolate LLM access from the API process
+- `GET /health`, `GET /ready`
+- `POST /draft-justification`
+- `POST /vendor-recommendation`
+- `POST /spend-summary`
+- `POST /interactions/:id/accept`
+
+All POST endpoints require `Authorization: Bearer <signed-token>` outside the test environment. The token must carry a tenant id (`tid`).

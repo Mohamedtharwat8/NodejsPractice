@@ -2,7 +2,7 @@
 
 A multi-tenant procure-to-pay platform: companies (tenants) raise purchase requests, get them approved, and issue purchase orders to vendors. It is also a hands-on project for a full-stack Angular + Node.js skill set (see the coverage matrix below).
 
-**Status:** the multi-tenant, versioned and documented core API (phases 1-5) is implemented. Phases 6-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
+**Status:** the multi-tenant, versioned and documented core API (phases 1-6) is implemented. Phases 7-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
 
 ## Business Requirements (BRD)
 
@@ -53,7 +53,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 | Angular, TypeScript, SCSS, RxJS, reactive forms, modular components | Phase 11 `client/` |
 | Node.js APIs, async programming, middleware | Done (Express 5 middleware chain); queues in phase 8 |
 | Microservices design | Phase 9: `notification-service`, `ai-service` |
-| PostgreSQL schema design, query optimisation | Prisma schema (done); indexes and `EXPLAIN` in phase 6 |
+| PostgreSQL schema design, query optimisation | Prisma schema (done); indexes, `EXPLAIN` and load testing in phase 6 (done, see [docs/performance.md](docs/performance.md)) |
 | MongoDB | Phase 7: audit trail |
 | Redis caching | Phase 5 (done: cache, rate limit, revocation); queues in phase 8 |
 | Multi-tenant SaaS | Phase 3 (done) |
@@ -68,7 +68,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 3. Multi-tenancy — done
 4. API versioning + OpenAPI docs — done
 5. Redis caching and rate limiting — done
-6. Query optimisation and cursor pagination
+6. Query optimisation and cursor pagination — done
 7. MongoDB audit trail
 8. Background jobs and notifications
 9. Extract microservices
@@ -126,7 +126,10 @@ The OpenAPI spec is built from the same zod schemas the routes validate with ([s
 | `POST /purchase-requests/:id/approve`, `/reject` | APPROVER, ADMIN (not own request) |
 | `POST /purchase-orders`, `GET /purchase-orders`, `GET /:id`, `POST /:id/cancel` | PROCUREMENT, ADMIN |
 
-List endpoints accept `status`, `page`, `pageSize`.
+List endpoints accept `status`, `page` and `pageSize`. Requests and purchase orders also accept `cursor`: pass the `nextCursor` from the previous response to get the next page (`null` on the last page). Cursor pages cost the same at any depth and skip the `COUNT`, so their response has no `total`/`page`; use them for large lists.
+
+### Performance
+`npm run db:load` generates 100,000 requests in a separate `loadtest` tenant, `npm run explain` prints query plans and `npm run bench` measures endpoint latency. Findings, before/after numbers and the rejected `relationJoins` experiment are in [docs/performance.md](docs/performance.md).
 
 ### Tests
 `npm test` needs the migrated and seeded database and Redis from `.env` (`docker compose up -d --wait`). `tests/redis-down.test.js` covers the no-Redis behaviour.

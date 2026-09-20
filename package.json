@@ -11,7 +11,11 @@
     "dev": "nodemon src/server.js",
     "test": "jest --runInBand",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "node prisma/seed.js"
+    "db:seed": "node prisma/seed.js",
+    "db:load": "node prisma/seed-load.js",
+    "db:load:clean": "node prisma/seed-load.js --clean",
+    "bench": "node scripts/bench.js",
+    "explain": "node scripts/explain.js"
   },
   "jest": {
     "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]

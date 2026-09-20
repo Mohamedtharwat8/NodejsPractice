@@ -3,6 +3,7 @@ const { HttpError } = require('../../middleware/error');
 const audit = require('../audit');
 const repo = require('./po.repository');
 const prCache = require('../purchase-requests/pr.cache');
+const { paginate } = require('../../lib/pagination');
 
 async function create(actorId, { prId, vendorId }) {
   const created = await prisma.$transaction(async (tx) => {
@@ -25,10 +26,9 @@ async function create(actorId, { prId, vendorId }) {
   return created;
 }
 
-async function list({ status, page, pageSize }) {
+async function list({ status, page, pageSize, cursor }) {
   const where = status ? { status } : {};
-  const [data, total] = await repo.list({ where, skip: (page - 1) * pageSize, take: pageSize });
-  return { data, total, page, pageSize };
+  return paginate({ where, page, pageSize, cursor, fetch: repo.findPage, count: repo.count });
 }
 
 const get = (id) => repo.findById(id);

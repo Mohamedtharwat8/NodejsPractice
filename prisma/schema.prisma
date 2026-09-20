@@ -102,7 +102,10 @@ model PurchaseRequest {
   approval      Approval?
   order         PurchaseOrder?
 
-  @@index([tenantId, status, createdAt])
+  // Lists are ordered newest-first by id and paged by cursor (id < cursor), so every index ends in id.
+  @@index([tenantId, id])
+  @@index([tenantId, status, id])
+  @@index([tenantId, requesterId, id])
 }
 
 model PRItem {
@@ -112,6 +115,9 @@ model PRItem {
   description String
   quantity    Int
   unitPrice   Decimal         @db.Decimal(12, 2)
+
+  // Postgres does not index foreign keys: without this every request load scanned the whole table.
+  @@index([prId])
 }
 
 model Approval {
@@ -138,7 +144,8 @@ model PurchaseOrder {
   issuedAt DateTime        @default(now())
 
   @@unique([tenantId, poNumber]) // BR7: sequential per tenant per year
-  @@index([tenantId, status, issuedAt])
+  @@index([tenantId, id])
+  @@index([tenantId, status, id])
 }
 
 model AuditLog {

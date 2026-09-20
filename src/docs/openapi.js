@@ -20,9 +20,16 @@ const queryParams = (schema) => {
 const ref = (name) => ({ $ref: `#/components/schemas/${name}` });
 const page = (name) => ({
   type: 'object',
+  description: 'Offset mode (page/pageSize) also returns total and page. Cursor mode returns only data, nextCursor and pageSize.',
   properties: {
     data: { type: 'array', items: ref(name) },
-    total: { type: 'integer' }, page: { type: 'integer' }, pageSize: { type: 'integer' },
+    total: { type: 'integer' },
+    page: { type: 'integer' },
+    pageSize: { type: 'integer' },
+    nextCursor: {
+      type: ['string', 'null'],
+      description: 'Pass as `cursor` to get the next page; null on the last page.',
+    },
   },
 });
 const idParam = { name: 'id', in: 'path', required: true, schema: { type: 'integer' } };

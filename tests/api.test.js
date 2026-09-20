@@ -113,5 +113,8 @@ describe('OpenAPI contract', () => {
     expect(body.properties.items.minItems).toBe(1);
     const params = spec.paths['/vendors'].get.parameters.map((p) => p.name);
     expect(params).toEqual(['status', 'page', 'pageSize']);
+    for (const path of ['/purchase-requests', '/purchase-orders']) {
+      expect(spec.paths[path].get.parameters.map((p) => p.name)).toEqual(['status', 'page', 'pageSize', 'cursor']);
+    }
   });
 });

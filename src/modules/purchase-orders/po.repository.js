@@ -8,11 +8,9 @@ const countForYear = (db, year) => db.purchaseOrder.count({ where: { poNumber: {
 const create = (db, data) => db.purchaseOrder.create({ data, include });
 const findById = (id) => prisma.purchaseOrder.findUniqueOrThrow({ where: { id }, include });
 
-const list = ({ where, skip, take }) =>
-  Promise.all([
-    prisma.purchaseOrder.findMany({ where, include, skip, take, orderBy: { id: 'desc' } }),
-    prisma.purchaseOrder.count({ where }),
-  ]);
+const findPage = ({ where, skip, take }) =>
+  prisma.purchaseOrder.findMany({ where, include, skip, take, orderBy: { id: 'desc' } });
+const count = (where) => prisma.purchaseOrder.count({ where });
 
 // Returns true if the order was ISSUED and is now CANCELLED.
 async function cancelIfIssued(id) {
@@ -23,4 +21,4 @@ async function cancelIfIssued(id) {
   return count === 1;
 }
 
-module.exports = { findRequest, findVendor, countForYear, create, findById, list, cancelIfIssued };
+module.exports = { findRequest, findVendor, countForYear, create, findById, findPage, count, cancelIfIssued };

@@ -3,6 +3,7 @@ const { HttpError } = require('../../middleware/error');
 const audit = require('../audit');
 const repo = require('./pr.repository');
 const prCache = require('./pr.cache');
+const { paginate } = require('../../lib/pagination');
 
 const total = (items) => items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
 const seesAll = (role) => role !== 'REQUESTER';
@@ -37,13 +38,12 @@ async function create(user, { items, ...rest }) {
   return pr;
 }
 
-async function list(user, { status, page, pageSize }) {
+async function list(user, { status, page, pageSize, cursor }) {
   const where = {
     ...(status && { status }),
     ...(!seesAll(user.role) && { requesterId: user.id }),
   };
-  const [data, count] = await repo.list({ where, skip: (page - 1) * pageSize, take: pageSize });
-  return { data, total: count, page, pageSize };
+  return paginate({ where, page, pageSize, cursor, fetch: repo.findPage, count: repo.count });
 }
 
 // The cache holds the request itself; visibility is checked per caller after the lookup.

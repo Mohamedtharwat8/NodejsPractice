@@ -6,11 +6,11 @@ const create = (data) => prisma.purchaseRequest.create({ data, include });
 const findById = (id, db = prisma) => db.purchaseRequest.findUnique({ where: { id }, include });
 const update = (id, data) => prisma.purchaseRequest.update({ where: { id }, data, include });
 
-const list = ({ where, skip, take }) =>
-  Promise.all([
-    prisma.purchaseRequest.findMany({ where, include, skip, take, orderBy: { id: 'desc' } }),
-    prisma.purchaseRequest.count({ where }),
-  ]);
+// Relations load with Prisma's default strategy: one extra query per relation for the whole page
+// (never per row), each using an IN list. The 'join' strategy was tried and rejected, see docs/performance.md.
+const findPage = ({ where, skip, take }) =>
+  prisma.purchaseRequest.findMany({ where, include, skip, take, orderBy: { id: 'desc' } });
+const count = (where) => prisma.purchaseRequest.count({ where });
 
 // Conditional status change; returns true if the row was in `from` and is now in `to`.
 async function transition(db, id, from, to) {
@@ -20,4 +20,4 @@ async function transition(db, id, from, to) {
 
 const createApproval = (db, data) => db.approval.create({ data });
 
-module.exports = { create, findById, update, list, transition, createApproval };
+module.exports = { create, findById, update, findPage, count, transition, createApproval };

@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { pagingFields } = require('../../lib/pagination');
 
 const item = z.object({
   description: z.string().min(1),
@@ -17,8 +18,7 @@ const decision = z.object({ comment: z.string().optional() });
 
 const list = z.object({
   status: z.enum(['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED']).optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  ...pagingFields,
 });
 
 module.exports = { create, update, decision, list };

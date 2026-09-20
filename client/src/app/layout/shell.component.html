@@ -8,11 +8,13 @@
       <a routerLink="/vendors" routerLinkActive="active">Vendors</a>
       @if (auth.hasRole(['PROCUREMENT', 'ADMIN'])) { <a routerLink="/orders" routerLinkActive="active">Purchase orders</a> }
       @if (auth.hasRole(['ADMIN'])) { <a routerLink="/audit" routerLinkActive="active">Audit trail</a> }
+      @if (auth.hasRole(['ADMIN'])) { <a routerLink="/admin" routerLinkActive="active">Administration</a> }
     </nav>
     <div class="profile"><span class="avatar">{{ initials() }}</span><span><strong>{{ auth.user()?.name }}</strong><small>{{ auth.user()?.role }}</small></span><button type="button" title="Sign out" aria-label="Sign out" (click)="auth.logout()">↗</button></div>
   </aside>
   <section class="workspace">
-    <header class="topbar"><button class="menu" type="button" aria-label="Toggle navigation" (click)="menuOpen.update((value) => !value)">☰</button><span class="context">Workspace</span><span class="system-ok"><i></i> All systems normal</span></header>
+    <header class="topbar"><button class="menu" type="button" aria-label="Toggle navigation" (click)="menuOpen.update((value) => !value)">☰</button><span class="context">Workspace</span><a class="notifications" routerLink="/notifications">Notifications</a><span class="system-ok"><i></i> All systems normal</span></header>
     <main><router-outlet /></main>
   </section>
+  <app-toasts />
 </div>

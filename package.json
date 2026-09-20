@@ -12,6 +12,7 @@
     "start:ai-service": "node services/ai-service/index.js",
     "start:client": "npm --prefix client start",
     "build:client": "npm --prefix client run build",
+    "generate:client-api": "node scripts/generate-api-types.js",
     "dev": "nodemon src/server.js",
     "test": "jest --runInBand",
     "db:migrate": "prisma migrate dev",

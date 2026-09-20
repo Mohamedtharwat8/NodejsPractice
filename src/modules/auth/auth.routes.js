@@ -16,7 +16,7 @@ router.post('/logout', authenticate, async (req, res) => {
 
 // Only admins can create users (any role).
 router.post('/register', authenticate, requireRole('ADMIN'), validate(schema.register), async (req, res) => {
-  res.status(201).json(await service.register(req.body));
+  res.status(201).json(await service.register(Number(req.user.id), req.body));
 });
 
 router.get('/me', authenticate, async (req, res) => {

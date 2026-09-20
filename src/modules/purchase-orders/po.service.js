@@ -19,7 +19,9 @@ async function create(actorId, { prId, vendorId }) {
     const year = new Date().getFullYear();
     const seq = (await repo.countForYear(tx, year)) + 1; // BR7
     const po = await repo.create(tx, { prId, vendorId, poNumber: `PO-${year}-${String(seq).padStart(4, '0')}` });
-    await audit(actorId, 'CREATE', 'PurchaseOrder', po.id, tx);
+    await audit(actorId, 'CREATE', 'PurchaseOrder', po.id, tx, {
+      after: { poNumber: po.poNumber, prId, vendorId, status: po.status },
+    });
     return po;
   });
   await prCache.invalidate(prId); // the cached request embeds its order
@@ -34,9 +36,11 @@ async function list({ status, page, pageSize, cursor }) {
 const get = (id) => repo.findById(id);
 
 async function cancel(actorId, id) {
-  if (!(await repo.cancelIfIssued(id))) throw new HttpError(409, 'Order not found or not ISSUED');
-  await audit(actorId, 'CANCEL', 'PurchaseOrder', id);
-  const po = await repo.findById(id);
+  const po = await prisma.$transaction(async (tx) => {
+    if (!(await repo.cancelIfIssued(id, tx))) throw new HttpError(409, 'Order not found or not ISSUED');
+    await audit(actorId, 'CANCEL', 'PurchaseOrder', id, tx, { before: { status: 'ISSUED' }, after: { status: 'CANCELLED' } });
+    return repo.findById(id, tx);
+  });
   await prCache.invalidate(po.prId);
   return po;
 }

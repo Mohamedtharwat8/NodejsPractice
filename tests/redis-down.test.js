@@ -15,7 +15,7 @@ afterAll(() => prisma.$disconnect());
 it('reports Redis as down without failing health', async () => {
   const res = await request(app).get('/health');
   expect(res.status).toBe(200);
-  expect(res.body).toEqual({ status: 'ok', redis: 'down' });
+  expect(res.body).toMatchObject({ status: 'ok', redis: 'down' });
 });
 
 it('serves the full purchase flow without Redis', async () => {

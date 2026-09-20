@@ -3,7 +3,7 @@ const { currentTenantId } = require('./tenantContext');
 
 // Models that carry tenantId. PRItem and Approval are reached only through their
 // PurchaseRequest; Tenant itself is global (platform-level).
-const TENANT_MODELS = new Set(['User', 'Vendor', 'PurchaseRequest', 'PurchaseOrder', 'AuditLog']);
+const TENANT_MODELS = new Set(['User', 'Vendor', 'PurchaseRequest', 'PurchaseOrder', 'AuditOutbox']);
 
 const FILTERED = new Set([
   'findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany',
@@ -40,4 +40,11 @@ const tenantIsolation = {
   },
 };
 
-module.exports = new PrismaClient().$extends(tenantIsolation);
+const base = new PrismaClient();
+const prisma = base.$extends(tenantIsolation);
+
+// The same connection WITHOUT tenant scoping. Only for platform-level background work that must see
+// every tenant (draining the audit outbox). Never use it in request handling.
+prisma.unscoped = base;
+
+module.exports = prisma;

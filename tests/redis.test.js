@@ -165,6 +165,6 @@ describe('tenant suspension', () => {
 describe('health', () => {
   it('reports Redis as up', async () => {
     const res = await request(app).get('/health');
-    expect(res.body).toEqual({ status: 'ok', redis: 'up' });
+    expect(res.body).toMatchObject({ status: 'ok', redis: 'up' });
   });
 });

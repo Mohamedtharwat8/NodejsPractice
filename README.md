@@ -2,7 +2,7 @@
 
 A multi-tenant procure-to-pay platform: companies (tenants) raise purchase requests, get them approved, and issue purchase orders to vendors. It is also a hands-on project for a full-stack Angular + Node.js skill set (see the coverage matrix below).
 
-**Status:** the multi-tenant, versioned and documented core API (phases 1-6) is implemented. Phases 7-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
+**Status:** the multi-tenant, versioned and documented core API (phases 1-7) is implemented. Phases 8-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
 
 ## Business Requirements (BRD)
 
@@ -31,7 +31,7 @@ Purchasing in small and mid-size companies runs on email and spreadsheets: no ap
 | FR3 | Purchase request lifecycle DRAFT → SUBMITTED → APPROVED/REJECTED | 1-2 (done) |
 | FR4 | Approval decisions recorded with comment, atomically | 1-2 (done) |
 | FR5 | Purchase order from approved request, one per request, sequential PO number | 1-2 (done) |
-| FR6 | Audit log of every state change | 1-2 (done), moves to MongoDB in 7 |
+| FR6 | Audit log of every state change | 1-2, MongoDB trail in 7 (done) |
 | FR7 | Tenant isolation: no user can read or write another tenant's data | 3 (done) |
 | FR8 | Notifications to approvers/requesters on state changes | 8-9 |
 | FR9 | AI: draft justification, recommend vendor, summarise spend | 10 |
@@ -54,7 +54,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 | Node.js APIs, async programming, middleware | Done (Express 5 middleware chain); queues in phase 8 |
 | Microservices design | Phase 9: `notification-service`, `ai-service` |
 | PostgreSQL schema design, query optimisation | Prisma schema (done); indexes, `EXPLAIN` and load testing in phase 6 (done, see [docs/performance.md](docs/performance.md)) |
-| MongoDB | Phase 7: audit trail |
+| MongoDB | Phase 7 (done): audit trail |
 | Redis caching | Phase 5 (done: cache, rate limit, revocation); queues in phase 8 |
 | Multi-tenant SaaS | Phase 3 (done) |
 | API versioning and documentation | Phase 4 (done) |
@@ -69,7 +69,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 4. API versioning + OpenAPI docs — done
 5. Redis caching and rate limiting — done
 6. Query optimisation and cursor pagination — done
-7. MongoDB audit trail
+7. MongoDB audit trail — done
 8. Background jobs and notifications
 9. Extract microservices
 10. AI features
@@ -81,8 +81,8 @@ Architecture decisions for each phase (tenancy model, which store owns what, ser
 
 ## Running what exists today
 1. `npm install`
-2. `docker compose up -d --wait` (PostgreSQL on host port 55432 and Redis on 56379; the default ports fall in ranges Windows reserves on some machines).
-3. Copy `.env.example` to `.env` and set `JWT_SECRET`. `REDIS_URL` is optional (see below).
+2. `docker compose up -d --wait` (PostgreSQL on host port 55432, Redis on 56379 and MongoDB on 57017; the default ports fall in ranges Windows reserves on some machines).
+3. Copy `.env.example` to `.env` and set `JWT_SECRET`. `REDIS_URL` is optional; `MONGODB_URL` holds the audit trail (see below).
 4. `npm run db:migrate`, then `npm run db:seed`.
 5. `npm run dev`, then `GET /health`. Interactive API docs: <http://localhost:3000/docs> (raw spec at `/docs/openapi.json`).
 
@@ -103,6 +103,16 @@ Redis holds only data that can be lost or rebuilt, so the API works without it (
 
 Set `CACHE_DEBUG=1` to log every cache hit and miss.
 
+### Audit trail (phase 7)
+Every state change (requests, approvals, purchase orders, vendors, users, tenant creation and suspension) is recorded with the actor, a before/after snapshot and the `X-Request-Id` of the request that caused it. Admins search it with `GET /audit` (filters `entity`, `entityId`, `actorId`, `action`, `from`, `to`; cursor paging).
+
+- **Transactional outbox:** the event is written to the Postgres table `AuditOutbox` in the same transaction as the change, so a change and its event commit or roll back together. A drain worker (every 5 s, and before each `GET /audit`) moves events to the MongoDB collection `audit_events` and deletes them from Postgres.
+- **MongoDB outage:** business requests never touch Mongo, so they keep working; events wait in the outbox and are delivered when Mongo returns. Draining is idempotent (unique `outboxId`), so retries and concurrent workers never duplicate events. `GET /audit` answers `503` while Mongo is unreachable.
+- **Retention:** each event carries `expireAt = at + AUDIT_RETENTION_DAYS` (default 2555, about 7 years) and MongoDB deletes it then through a TTL index. Events are append-only: the application never updates them.
+- **Backfill:** the phase 6 `AuditLog` table became the outbox, so existing rows drained into MongoDB with their original timestamps.
+- **Tenant isolation:** audit queries are always filtered by the caller's tenant and fail closed without one, like the Prisma extension.
+- **Local setup notes:** `MONGODB_URL` uses `127.0.0.1` because `localhost` failed the driver handshake on the development machine. Mongoose is pinned to 8.x because the 9.x driver (7.x) could not connect from inside Jest here.
+
 ### API versioning and errors
 Business endpoints live under `/api/v1`; `/health` and `/docs` are unversioned. Every response carries `X-API-Version`. A deprecated version keeps working for at least six months and answers with `Deprecation`, `Sunset` and `Link: <successor>; rel="successor-version"` headers (registry in [src/config/versions.js](src/config/versions.js)).
 
@@ -115,6 +125,7 @@ The OpenAPI spec is built from the same zod schemas the routes validate with ([s
 | --- | --- |
 | `POST /platform/tenants` (creates tenant + first admin; header `x-platform-key`, needs `PLATFORM_API_KEY`) | platform owner |
 | `PATCH /platform/tenants/:id/status` (`ACTIVE` or `SUSPENDED`; header `x-platform-key`) | platform owner |
+| `GET /audit` (query: `entity`, `entityId`, `actorId`, `action`, `from`, `to`, `pageSize`, `cursor`) | ADMIN |
 | `POST /auth/login` (body: `tenant`, `email`, `password`) | public |
 | `POST /auth/logout` (revokes the current token) | any |
 | `POST /auth/register` | ADMIN |
@@ -132,4 +143,4 @@ List endpoints accept `status`, `page` and `pageSize`. Requests and purchase ord
 `npm run db:load` generates 100,000 requests in a separate `loadtest` tenant, `npm run explain` prints query plans and `npm run bench` measures endpoint latency. Findings, before/after numbers and the rejected `relationJoins` experiment are in [docs/performance.md](docs/performance.md).
 
 ### Tests
-`npm test` needs the migrated and seeded database and Redis from `.env` (`docker compose up -d --wait`). `tests/redis-down.test.js` covers the no-Redis behaviour.
+`npm test` needs the migrated and seeded database, Redis and MongoDB from `.env` (`docker compose up -d --wait`). `tests/redis-down.test.js` and `tests/audit-down.test.js` cover the no-Redis and no-MongoDB behaviour. Run it in band (`npm test` does): the tests share the login rate-limit counter.

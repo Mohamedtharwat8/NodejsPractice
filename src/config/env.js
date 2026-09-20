@@ -14,5 +14,8 @@ module.exports = {
   platformApiKey: process.env.PLATFORM_API_KEY,
   // Redis is optional: without it caching, revocation and shared rate limits are off (see infra/redis.js).
   redisUrl: process.env.REDIS_URL || undefined,
+  // MongoDB stores audit events. Without it events accumulate in the Postgres outbox until it is configured.
+  mongodbUrl: process.env.MONGODB_URL || undefined,
+  auditRetentionDays: Number(process.env.AUDIT_RETENTION_DAYS) || 2555, // about 7 years
   loginRateLimit: Number(process.env.LOGIN_RATE_LIMIT) || (process.env.NODE_ENV === 'test' ? 1000 : 20),
 };

@@ -6,6 +6,8 @@ const { jwtSecret, jwtExpiresIn } = require('../../config/env');
 const { HttpError } = require('../../middleware/error');
 const { runInTenant } = require('../../db/tenantContext');
 const repo = require('./auth.repository');
+const prisma = require('../../db/prisma');
+const audit = require('../audit');
 
 const publicUser = ({ passwordHash, ...user }) => user;
 
@@ -35,8 +37,15 @@ async function logout({ jti, exp }) {
 }
 
 // Runs in the calling admin's tenant context, so the new user joins the admin's tenant.
-async function register({ password, ...rest }) {
-  const user = await repo.create({ ...rest, passwordHash: await bcrypt.hash(password, 10) });
+async function register(actorId, { password, ...rest }) {
+  const passwordHash = await bcrypt.hash(password, 10);
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({ data: { ...rest, passwordHash } });
+    await audit(actorId, 'CREATE', 'User', created.id, tx, {
+      after: { name: created.name, email: created.email, role: created.role },
+    });
+    return created;
+  });
   return publicUser(user);
 }
 

@@ -26,7 +26,7 @@ async function clean() {
   await prisma.$executeRaw`DELETE FROM "Approval" WHERE "prId" IN (SELECT id FROM "PurchaseRequest" WHERE "tenantId" = ${t})`;
   await prisma.$executeRaw`DELETE FROM "PRItem" WHERE "prId" IN (SELECT id FROM "PurchaseRequest" WHERE "tenantId" = ${t})`;
   await prisma.$executeRaw`DELETE FROM "PurchaseRequest" WHERE "tenantId" = ${t}`;
-  await prisma.$executeRaw`DELETE FROM "AuditLog" WHERE "tenantId" = ${t}`;
+  await prisma.$executeRaw`DELETE FROM "AuditOutbox" WHERE "tenantId" = ${t}`;
   await prisma.$executeRaw`DELETE FROM "Vendor" WHERE "tenantId" = ${t}`;
   await prisma.$executeRaw`DELETE FROM "User" WHERE "tenantId" = ${t}`;
   await prisma.tenant.delete({ where: { id: t } });

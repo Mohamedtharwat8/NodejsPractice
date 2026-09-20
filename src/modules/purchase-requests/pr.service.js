@@ -27,15 +27,24 @@ async function getOwned(user, id, status) {
   return pr;
 }
 
+// What the audit trail records about a request: the fields a reviewer cares about, not the whole row.
+const snapshot = (pr) => ({
+  title: pr.title, justification: pr.justification, status: pr.status,
+  totalAmount: pr.totalAmount, itemCount: pr.items?.length,
+});
+
+// Each write and its audit event commit in one transaction; the cache is invalidated after the commit.
 async function create(user, { items, ...rest }) {
-  const pr = await repo.create({
-    ...rest,
-    requesterId: user.id,
-    totalAmount: total(items),
-    items: { create: items },
+  return prisma.$transaction(async (tx) => {
+    const pr = await repo.create({
+      ...rest,
+      requesterId: user.id,
+      totalAmount: total(items),
+      items: { create: items },
+    }, tx);
+    await audit(user.id, 'CREATE', 'PurchaseRequest', pr.id, tx, { after: snapshot(pr) });
+    return pr;
   });
-  await audit(user.id, 'CREATE', 'PurchaseRequest', pr.id);
-  return pr;
 }
 
 async function list(user, { status, page, pageSize, cursor }) {
@@ -52,20 +61,28 @@ async function get(user, id) {
 }
 
 async function update(user, id, { items, ...rest }) {
-  await getOwned(user, id, 'DRAFT');
-  const pr = await repo.update(id, {
-    ...rest,
-    ...(items && { totalAmount: total(items), items: { deleteMany: {}, create: items } }),
+  const before = await getOwned(user, id, 'DRAFT');
+  const pr = await prisma.$transaction(async (tx) => {
+    const updated = await repo.update(id, {
+      ...rest,
+      ...(items && { totalAmount: total(items), items: { deleteMany: {}, create: items } }),
+    }, tx);
+    await audit(user.id, 'UPDATE', 'PurchaseRequest', id, tx, { before: snapshot(before), after: snapshot(updated) });
+    return updated;
   });
-  await audit(user.id, 'UPDATE', 'PurchaseRequest', id);
   await prCache.invalidate(id);
   return pr;
 }
 
 async function submit(user, id) {
   await getOwned(user, id, 'DRAFT');
-  const pr = await repo.update(id, { status: 'SUBMITTED' });
-  await audit(user.id, 'SUBMIT', 'PurchaseRequest', id);
+  const pr = await prisma.$transaction(async (tx) => {
+    const updated = await repo.update(id, { status: 'SUBMITTED' }, tx);
+    await audit(user.id, 'SUBMIT', 'PurchaseRequest', id, tx, {
+      before: { status: 'DRAFT' }, after: { status: 'SUBMITTED', totalAmount: updated.totalAmount },
+    });
+    return updated;
+  });
   await prCache.invalidate(id);
   return pr;
 }
@@ -80,7 +97,9 @@ async function decide(user, id, decision, comment) {
       throw new HttpError(409, 'Request must be SUBMITTED');
     }
     await repo.createApproval(tx, { prId: id, approverId: user.id, decision, comment });
-    await audit(user.id, decision, 'PurchaseRequest', id, tx);
+    await audit(user.id, decision, 'PurchaseRequest', id, tx, {
+      before: { status: 'SUBMITTED' }, after: { status: decision, comment: comment ?? null },
+    });
     return repo.findById(id, tx);
   });
   await prCache.invalidate(id); // after commit, so a concurrent reader cannot re-cache the old state

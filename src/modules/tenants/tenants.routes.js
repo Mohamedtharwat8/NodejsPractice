@@ -8,6 +8,7 @@ const { HttpError } = require('../../middleware/error');
 const validate = require('../../middleware/validate');
 const schema = require('./tenants.schema');
 const tenantStatus = require('./tenant-status');
+const audit = require('../audit');
 
 // Platform-owner access: a shared secret, not a tenant user. Disabled unless PLATFORM_API_KEY is set.
 function platformOnly(req, res, next) {
@@ -34,6 +35,10 @@ router.post('/', validate(schema.create), async (req, res) => {
     const user = await runInTenant(tenant.id, async () =>
       await tx.user.create({ data: { ...adminData, role: 'ADMIN', passwordHash } }),
     );
+    await runInTenant(tenant.id, async () => {
+      await audit(null, 'CREATE', 'Tenant', tenant.id, tx, { after: { name, slug } });
+      await audit(null, 'CREATE', 'User', user.id, tx, { after: { email: user.email, role: user.role } });
+    });
     return { tenant, admin: { id: user.id, name: user.name, email: user.email, role: user.role } };
   });
   res.status(201).json(result);
@@ -43,7 +48,11 @@ router.post('/', validate(schema.create), async (req, res) => {
 // at most 60s, and invalidated here). Reactivating reverses it.
 router.patch('/:id/status', validate(schema.setStatus), async (req, res) => {
   const id = Number(req.params.id);
+  const before = await prisma.tenant.findUniqueOrThrow({ where: { id } });
   const tenant = await prisma.tenant.update({ where: { id }, data: { status: req.body.status } });
+  await runInTenant(id, async () => {
+    await audit(null, 'SET_STATUS', 'Tenant', id, prisma, { before: { status: before.status }, after: { status: tenant.status } });
+  });
   await tenantStatus.invalidate(id);
   res.json(tenant);
 });

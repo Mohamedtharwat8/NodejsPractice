@@ -2,9 +2,10 @@ const prisma = require('../../db/prisma');
 
 const include = { items: true, approval: true, order: true };
 
-const create = (data) => prisma.purchaseRequest.create({ data, include });
+// Writes take an optional transaction client so the service can commit them with their audit event.
+const create = (data, db = prisma) => db.purchaseRequest.create({ data, include });
 const findById = (id, db = prisma) => db.purchaseRequest.findUnique({ where: { id }, include });
-const update = (id, data) => prisma.purchaseRequest.update({ where: { id }, data, include });
+const update = (id, data, db = prisma) => db.purchaseRequest.update({ where: { id }, data, include });
 
 // Relations load with Prisma's default strategy: one extra query per relation for the whole page
 // (never per row), each using an IN list. The 'join' strategy was tried and rejected, see docs/performance.md.

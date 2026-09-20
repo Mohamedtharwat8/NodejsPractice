@@ -18,7 +18,9 @@
     "explain": "node scripts/explain.js"
   },
   "jest": {
-    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ]
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -33,6 +35,7 @@
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.24.4",
     "morgan": "^1.12.1",
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.6.5"

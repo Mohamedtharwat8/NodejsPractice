@@ -4,6 +4,7 @@ const vendors = require('../modules/vendors/vendors.schema');
 const pr = require('../modules/purchase-requests/pr.schema');
 const po = require('../modules/purchase-orders/po.schema');
 const tenants = require('../modules/tenants/tenants.schema');
+const audit = require('../modules/audit/audit.schema');
 
 // Request bodies and query strings come straight from the zod schemas the routes validate with,
 // so the documented input can never drift from the enforced input.
@@ -118,6 +119,29 @@ const components = {
         issuedAt: { type: 'string', format: 'date-time' },
       },
     },
+    AuditEvent: {
+      type: 'object',
+      description: 'One state change. Stored in MongoDB, append-only; removed after the retention period.',
+      properties: {
+        id: { type: 'string' },
+        at: { type: 'string', format: 'date-time' },
+        actorId: { type: ['integer', 'null'], description: 'Null for platform-owner actions.' },
+        action: { type: 'string', example: 'APPROVED' },
+        entity: { type: 'string', example: 'PurchaseRequest' },
+        entityId: { type: 'integer' },
+        before: { type: ['object', 'null'] },
+        after: { type: ['object', 'null'] },
+        correlationId: { type: ['string', 'null'], description: 'The X-Request-Id of the request that caused the change.' },
+      },
+    },
+    AuditPage: {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: ref('AuditEvent') },
+        nextCursor: { type: ['string', 'null'] },
+        pageSize: { type: 'integer' },
+      },
+    },
     VendorPage: page('Vendor'),
     PurchaseRequestPage: page('PurchaseRequest'),
     PurchaseOrderPage: page('PurchaseOrder'),
@@ -141,6 +165,10 @@ const operations = [
   { method: 'post', path: '/auth/register', tag: 'Auth', summary: 'Create a user in your own tenant',
     roles: ['ADMIN'], body: auth.register, ok: [201, 'User'], errors: [400, 401, 403, 409] },
   { method: 'get', path: '/auth/me', tag: 'Auth', summary: 'Current user', ok: [200, 'User'], errors: [401] },
+
+  { method: 'get', path: '/audit', tag: 'Audit', summary: 'Search the audit trail (newest first)',
+    description: 'Events are written with the change and reach MongoDB within seconds; this call flushes pending ones first. 503 if MongoDB is unavailable.',
+    roles: ['ADMIN'], query: audit.list, ok: [200, 'AuditPage'], errors: [400, 401, 403, 503] },
 
   { method: 'get', path: '/vendors', tag: 'Vendors', summary: 'List vendors', query: vendors.list,
     ok: [200, 'VendorPage'], errors: [400, 401] },

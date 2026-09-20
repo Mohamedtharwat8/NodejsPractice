@@ -1,4 +1,13 @@
-# Local development infrastructure. Grows with the roadmap (redis, mongo, services, client).
+# Full stack: `docker compose up --build`, then open http://localhost:8080.
+# Infra ports are published on 55432/56379/57017 so `npm run dev` on the host still works.
+# First run: `docker compose run --rm migrate node prisma/seed.js` to load demo data.
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://postgres:postgres@postgres:5432/procurement?schema=public
+  REDIS_URL: redis://redis:6379
+  MONGODB_URL: mongodb://mongo:27017/procurement_audit
+  JWT_SECRET: ${JWT_SECRET:-change-me}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -37,6 +46,55 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  migrate:
+    build: { context: ., target: migrate }
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/procurement?schema=public
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: { context: ., target: api }
+    environment:
+      <<: *app-env
+      PORT: 3000
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY:-change-me-platform-key}
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+
+  notification-service:
+    build: { context: ., target: notification-service }
+    environment:
+      <<: *app-env
+      SMTP_URL: ${SMTP_URL:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  ai-service:
+    build: { context: ., target: ai-service }
+    environment:
+      <<: *app-env
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_API_URL: ${AI_API_URL:-https://api.openai.com/v1/chat/completions}
+      AI_MODEL: ${AI_MODEL:-gpt-5-mini}
+    depends_on:
+      redis: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+
+  client:
+    build: { context: ./client }
+    ports:
+      - "8080:80"
+    depends_on:
+      api: { condition: service_healthy }
+      ai-service: { condition: service_healthy }
 
 volumes:
   pgdata:

@@ -20,7 +20,8 @@
     "db:load": "node prisma/seed-load.js",
     "db:load:clean": "node prisma/seed-load.js --clean",
     "bench": "node scripts/bench.js",
-    "explain": "node scripts/explain.js"
+    "explain": "node scripts/explain.js",
+    "lint": "eslint ."
   },
   "jest": {
     "testPathIgnorePatterns": [
@@ -53,6 +54,9 @@
   "devDependencies": {
     "@bull-board/api": "^9.10.1",
     "@bull-board/express": "^9.10.1",
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0",
     "jest": "^30.5.2",
     "nodemon": "^3.1.14",
     "prisma": "^6.19.3",

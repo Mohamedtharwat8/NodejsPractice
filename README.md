@@ -59,7 +59,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 | Multi-tenant SaaS | Phase 3 (done) |
 | API versioning and documentation | Phase 4 (done) |
 | AI/LLM integration | Phase 10 |
-| Git, CI/CD, Docker | Phases 12-13 |
+| Git, CI/CD, Docker | Phase 12 (done: Dockerfiles, compose, GitHub Actions); phase 13 |
 | Jira, Agile | Phase 13: epics/stories per phase |
 
 ## Roadmap
@@ -73,8 +73,8 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 8. Background jobs and notifications — done
 9. Extract microservices — done
 10. AI features — done
-11. Angular client — in progress
-12. Docker, docker-compose, GitHub Actions
+11. Angular client — done
+12. Docker, docker-compose, GitHub Actions — done
 13. Process: Jira-style backlog, conventional commits, PR template
 
 Architecture decisions for each phase (tenancy model, which store owns what, service boundaries) are in `plans/02-full-stack-roadmap.md`.
@@ -132,7 +132,7 @@ State changes publish domain events that background jobs turn into in-app notifi
 - **Running it:** the API process keeps only the audit drain beside the HTTP server; the notification relay and worker move into the separate `notification-service`. A legacy local run can temporarily re-enable the old behaviour with `ENABLE_LEGACY_NOTIFICATION_WORKER=1`.
 
 ### Extracted services and AI (phases 9-10)
-The notification relay/worker and AI runtime are independently runnable from `services/`. Both expose `/health` and `/ready`, have graceful shutdown, Dockerfile stubs, and share validated payload contracts from `packages/contracts`.
+The notification relay/worker and AI runtime are independently runnable from `services/`. Both expose `/health` and `/ready`, have graceful shutdown, Dockerfiles, and share validated payload contracts from `packages/contracts`.
 
 The AI service provides justification drafting, vendor recommendations, and spend summaries. Requests require a signed tenant token outside tests. Prompts are versioned; calls have timeout/retry handling, validated structured output, a Redis-backed monthly tenant cap (with a local development fallback), and `AiInteraction` usage records in MongoDB. If `AI_API_KEY` is unset, a deterministic local provider supports development; provider failure never blocks manual entry. Suggestions return an `interactionId`, and `POST /interactions/:id/accept` records when a user keeps one.
 
@@ -173,3 +173,18 @@ List endpoints accept `status`, `page` and `pageSize`. Requests and purchase ord
 
 ### Tests
 `npm test` needs the migrated and seeded database, Redis and MongoDB from `.env` (`docker compose up -d --wait`). `tests/redis-down.test.js` and `tests/audit-down.test.js` cover the no-Redis and no-MongoDB behaviour. Run it in band (`npm test` does): the tests share the login rate-limit counter. Stop any running dev server first: its worker would take jobs from the same Redis queue and the queue tests would miss them.
+
+## Run everything with Docker
+
+```bash
+docker compose up --build                            # postgres, redis, mongo, migrate, api, services, client
+docker compose run --rm migrate node prisma/seed.js  # demo tenants and users (first run only)
+```
+
+Open http://localhost:8080 and sign in as `requester@example.com` / `Password123!` (tenant `acme`). nginx in the client image proxies `/api` to the API and `/ai` to the AI service. Secrets and the LLM key come from the environment or a root `.env` (`JWT_SECRET`, `PLATFORM_API_KEY`, `AI_API_KEY`, `SMTP_URL`); without `AI_API_KEY` the AI service uses its local fallback.
+
+Per-service settings are documented in `services/*/.env.example`.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request: ESLint and the Jest suite against Postgres, Redis and MongoDB service containers; the client build, unit tests and Playwright smoke test; an image build for the api, ai-service, notification-service and client; and a `docker compose up --wait` smoke test. Pushing a `v*` tag also publishes the images to GHCR. Make the checks required in branch protection so a failing test blocks the merge.

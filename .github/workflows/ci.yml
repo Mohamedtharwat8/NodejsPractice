@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  backend:
+    name: Lint and test (api + services)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: procurement }
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d procurement" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['56379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+      mongo:
+        image: mongo:7
+        ports: ['57017:27017']
+        options: >-
+          --health-cmd "mongosh --quiet --eval \"db.adminCommand('ping').ok\"" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:55432/procurement?schema=public
+      REDIS_URL: redis://localhost:56379
+      MONGODB_URL: mongodb://127.0.0.1:57017/procurement_audit
+      JWT_SECRET: ci-secret
+      PLATFORM_API_KEY: ci-platform-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run lint
+      - run: npm test
+
+  client:
+    name: Build, unit and e2e (client)
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: client }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: client/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+      - run: npm test -- --watch=false
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: playwright-traces, path: client/test-results, if-no-files-found: ignore }
+
+  images:
+    name: Build images${{ startsWith(github.ref, 'refs/tags/v') && ' and publish' || '' }}
+    needs: [backend, client]
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    strategy:
+      matrix:
+        include:
+          - { name: api, context: ., target: api }
+          - { name: ai-service, context: ., target: ai-service }
+          - { name: notification-service, context: ., target: notification-service }
+          - { name: client, context: ./client, target: '' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with: { registry: '${{ env.REGISTRY }}', username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}
+          tags: type=semver,pattern={{version}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          target: ${{ matrix.target }}
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ steps.meta.outputs.tags || format('{0}/{1}:ci', env.IMAGE_PREFIX, matrix.name) }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  compose-smoke:
+    name: docker compose up smoke test
+    needs: [backend, client]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build --wait
+      - run: |
+          curl -fsS http://localhost:3000/health
+          curl -fsS http://localhost:8080/ai/health
+          curl -fsS -o /dev/null http://localhost:8080/login
+      - if: failure()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down -v

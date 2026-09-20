@@ -11,6 +11,7 @@ const register = z.object({
   email: z.email(),
   password: z.string().min(8),
   role: z.enum(['REQUESTER', 'APPROVER', 'PROCUREMENT', 'ADMIN']).default('REQUESTER'),
+  approvalLimit: z.number().nonnegative().max(9999999999.99).nullable().optional(), // BR9
 });
 
 module.exports = { login, register };

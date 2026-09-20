@@ -69,6 +69,7 @@ const components = {
         id: { type: 'integer' }, tenantId: { type: 'integer' }, name: { type: 'string' },
         email: { type: 'string', format: 'email' },
         role: { enum: ['REQUESTER', 'APPROVER', 'PROCUREMENT', 'ADMIN'] },
+        approvalLimit: { type: ['string', 'null'], description: 'BR9: largest request total this user may approve above the tenant threshold.' },
         createdAt: { type: 'string', format: 'date-time' },
       },
     },
@@ -161,6 +162,14 @@ const components = {
         secret: { type: 'string', description: 'Only in the response that generated it. Store it now; it cannot be read again.' },
       },
     },
+    ApprovalSettings: {
+      type: 'object',
+      properties: { threshold: { type: ['number', 'null'], description: 'Requests above this total need an approver whose limit covers it. Null: no limit rule.' } },
+    },
+    UserApprovalLimit: {
+      type: 'object',
+      properties: { id: { type: 'integer' }, approvalLimit: { type: ['number', 'null'] } },
+    },
     DeadLetterList: {
       type: 'object',
       properties: {
@@ -217,6 +226,14 @@ const operations = [
   { method: 'put', path: '/settings/webhook', tag: 'Settings', summary: 'Set or clear the tenant webhook',
     description: 'PO_ISSUED and PO_CANCELLED events are POSTed to the URL with X-Event-Id, X-Event-Type, X-Timestamp and X-Signature (sha256 HMAC over "timestamp.body" with the secret). Deliveries are retried with backoff; dedupe on X-Event-Id. https only, no private addresses.',
     roles: ['ADMIN'], body: settings.webhook, ok: [200, 'WebhookSettings'], errors: [400, 401, 403] },
+
+  { method: 'get', path: '/settings/approval', tag: 'Settings', summary: 'Approval threshold of your tenant (BR9)',
+    roles: ['ADMIN'], ok: [200, 'ApprovalSettings'], errors: [401, 403] },
+  { method: 'put', path: '/settings/approval', tag: 'Settings', summary: 'Set or clear the approval threshold (BR9)',
+    description: 'Approving a request whose total is above the threshold needs an approver whose own limit covers it (403 APPROVAL_LIMIT_EXCEEDED otherwise). Admins are exempt; rejecting is never limited. Null switches the rule off.',
+    roles: ['ADMIN'], body: settings.approval, ok: [200, 'ApprovalSettings'], errors: [400, 401, 403] },
+  { method: 'put', path: '/settings/approval/users/{id}', tag: 'Settings', summary: 'Set or clear the approval limit of a user (BR9)',
+    roles: ['ADMIN'], body: settings.userLimit, ok: [200, 'UserApprovalLimit'], errors: [400, 401, 403, 404] },
 
   { method: 'get', path: '/platform/dead-letters', tag: 'Platform', summary: 'Jobs that exhausted their retries',
     security: 'platformKey', ok: [200, 'DeadLetterList'], errors: [401, 503] },

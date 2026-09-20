@@ -1,4 +1,5 @@
 const prisma = require('../../db/prisma');
+const { currentTenantId } = require('../../db/tenantContext');
 const { HttpError } = require('../../middleware/error');
 const audit = require('../audit');
 const repo = require('./pr.repository');
@@ -93,9 +94,22 @@ async function submit(user, id) {
 }
 
 // decision is 'APPROVED' or 'REJECTED'. Status change, approval row and audit commit together.
+// BR9: above the tenant threshold an approver needs a limit that covers the total. Admins are exempt, rejecting is
+// never limited, and a tenant without a threshold keeps the old behaviour (any approver, any amount).
+async function assertWithinApprovalLimit(user, request) {
+  if (user.role === 'ADMIN') return;
+  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: currentTenantId() } });
+  if (tenant.approvalThreshold === null || request.totalAmount.lte(tenant.approvalThreshold)) return;
+  const approver = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+  if (approver.approvalLimit === null || request.totalAmount.gt(approver.approvalLimit)) {
+    throw new HttpError(403, 'Amount is above your approval limit', 'APPROVAL_LIMIT_EXCEEDED');
+  }
+}
+
 async function decide(user, id, decision, comment) {
   const existing = await getVisible(user, id);
   if (existing.requesterId === user.id) throw new HttpError(403, 'Cannot decide your own request'); // BR4
+  if (decision === 'APPROVED') await assertWithinApprovalLimit(user, existing); // BR9
   const pr = await prisma.$transaction(async (tx) => {
     // The conditional transition guards against two approvers deciding at once (BR5).
     if (!(await repo.transition(tx, id, 'SUBMITTED', decision))) {

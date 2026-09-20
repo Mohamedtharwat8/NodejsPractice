@@ -58,6 +58,8 @@ model Tenant {
   notifications Notification[]
   webhookUrl    String?
   webhookSecret String?
+  // BR9: requests above this total need an approver whose approvalLimit covers it. Null switches the rule off.
+  approvalThreshold Decimal? @db.Decimal(12, 2)
 }
 
 model User {
@@ -68,6 +70,8 @@ model User {
   email         String
   passwordHash  String
   role          Role              @default(REQUESTER)
+  // BR9: the largest request total this user may approve above the tenant threshold. Null means none above it.
+  approvalLimit Decimal?          @db.Decimal(12, 2)
   createdAt     DateTime          @default(now())
   requests      PurchaseRequest[]
   approvals     Approval[]

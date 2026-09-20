@@ -36,30 +36,60 @@ enum POStatus {
   CANCELLED
 }
 
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+// Every model except Tenant, PRItem and Approval carries tenantId; PRItem and Approval
+// are reached only through their PurchaseRequest. Isolation is enforced in src/db/prisma.js.
+model Tenant {
+  id        Int             @id @default(autoincrement())
+  name      String
+  slug      String          @unique
+  status    TenantStatus    @default(ACTIVE)
+  createdAt DateTime        @default(now())
+  users     User[]
+  vendors   Vendor[]
+  requests  PurchaseRequest[]
+  orders    PurchaseOrder[]
+  auditLogs AuditLog[]
+}
+
 model User {
   id           Int               @id @default(autoincrement())
+  tenantId     Int
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
   name         String
-  email        String            @unique
+  email        String
   passwordHash String
   role         Role              @default(REQUESTER)
   createdAt    DateTime          @default(now())
   requests     PurchaseRequest[]
   approvals    Approval[]
   auditLogs    AuditLog[]
+
+  @@unique([tenantId, email])
 }
 
 model Vendor {
   id        Int             @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
   name      String
   email     String?
   phone     String?
   status    VendorStatus    @default(ACTIVE)
   createdAt DateTime        @default(now())
   orders    PurchaseOrder[]
+
+  @@index([tenantId, status])
 }
 
 model PurchaseRequest {
   id            Int             @id @default(autoincrement())
+  tenantId      Int
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
   requesterId   Int
   requester     User            @relation(fields: [requesterId], references: [id])
   title         String
@@ -71,6 +101,8 @@ model PurchaseRequest {
   items         PRItem[]
   approval      Approval?
   order         PurchaseOrder?
+
+  @@index([tenantId, status, createdAt])
 }
 
 model PRItem {
@@ -95,17 +127,24 @@ model Approval {
 
 model PurchaseOrder {
   id       Int             @id @default(autoincrement())
+  tenantId Int
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
   prId     Int             @unique
   pr       PurchaseRequest @relation(fields: [prId], references: [id])
   vendorId Int
   vendor   Vendor          @relation(fields: [vendorId], references: [id])
-  poNumber String          @unique
+  poNumber String
   status   POStatus        @default(ISSUED)
   issuedAt DateTime        @default(now())
+
+  @@unique([tenantId, poNumber]) // BR7: sequential per tenant per year
+  @@index([tenantId, status, issuedAt])
 }
 
 model AuditLog {
   id       Int      @id @default(autoincrement())
+  tenantId Int
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
   actorId  Int?
   actor    User?    @relation(fields: [actorId], references: [id])
   action   String

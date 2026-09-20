@@ -44,30 +44,35 @@ enum TenantStatus {
 // Every model except Tenant, PRItem and Approval carries tenantId; PRItem and Approval
 // are reached only through their PurchaseRequest. Isolation is enforced in src/db/prisma.js.
 model Tenant {
-  id        Int             @id @default(autoincrement())
-  name      String
-  slug      String          @unique
-  status    TenantStatus    @default(ACTIVE)
-  createdAt DateTime        @default(now())
-  users     User[]
-  vendors   Vendor[]
-  requests  PurchaseRequest[]
-  orders    PurchaseOrder[]
-  auditOutbox AuditOutbox[]
+  id            Int               @id @default(autoincrement())
+  name          String
+  slug          String            @unique
+  status        TenantStatus      @default(ACTIVE)
+  createdAt     DateTime          @default(now())
+  users         User[]
+  vendors       Vendor[]
+  requests      PurchaseRequest[]
+  orders        PurchaseOrder[]
+  auditOutbox   AuditOutbox[]
+  eventOutbox   EventOutbox[]
+  notifications Notification[]
+  webhookUrl    String?
+  webhookSecret String?
 }
 
 model User {
-  id           Int               @id @default(autoincrement())
-  tenantId     Int
-  tenant       Tenant            @relation(fields: [tenantId], references: [id])
-  name         String
-  email        String
-  passwordHash String
-  role         Role              @default(REQUESTER)
-  createdAt    DateTime          @default(now())
-  requests     PurchaseRequest[]
-  approvals    Approval[]
-  auditOutbox  AuditOutbox[]
+  id            Int               @id @default(autoincrement())
+  tenantId      Int
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+  name          String
+  email         String
+  passwordHash  String
+  role          Role              @default(REQUESTER)
+  createdAt     DateTime          @default(now())
+  requests      PurchaseRequest[]
+  approvals     Approval[]
+  auditOutbox   AuditOutbox[]
+  notifications Notification[]
 
   @@unique([tenantId, email])
 }
@@ -87,17 +92,17 @@ model Vendor {
 }
 
 model PurchaseRequest {
-  id            Int             @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   tenantId      Int
-  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
   requesterId   Int
-  requester     User            @relation(fields: [requesterId], references: [id])
+  requester     User           @relation(fields: [requesterId], references: [id])
   title         String
   justification String?
-  status        PRStatus        @default(DRAFT)
-  totalAmount   Decimal         @default(0) @db.Decimal(12, 2)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  status        PRStatus       @default(DRAFT)
+  totalAmount   Decimal        @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   items         PRItem[]
   approval      Approval?
   order         PurchaseOrder?
@@ -168,4 +173,39 @@ model AuditOutbox {
   lastError     String?
 
   @@index([tenantId, id])
+}
+
+// Domain events waiting to be published to the job queue. Written in the same transaction as the change
+// that caused them, then relayed to BullMQ and deleted. Rows that stay here are events Redis has not accepted.
+model EventOutbox {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  type          String
+  payload       Json
+  correlationId String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, id])
+}
+
+// In-app notification. The unique key makes delivery idempotent: a job that runs twice (retry, crash
+// recovery) cannot create a second notification for the same event and user.
+model Notification {
+  id        Int       @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id])
+  eventId   Int
+  type      String
+  title     String
+  entity    String
+  entityId  Int
+  emailedAt DateTime?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, eventId, type])
+  @@index([tenantId, userId, id])
 }

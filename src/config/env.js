@@ -17,5 +17,11 @@ module.exports = {
   // MongoDB stores audit events. Without it events accumulate in the Postgres outbox until it is configured.
   mongodbUrl: process.env.MONGODB_URL || undefined,
   auditRetentionDays: Number(process.env.AUDIT_RETENTION_DAYS) || 2555, // about 7 years
+  // Notifications (phase 8). Email goes through SMTP_URL when set; otherwise messages are only logged.
+  smtpUrl: process.env.SMTP_URL || undefined,
+  mailFrom: process.env.MAIL_FROM || 'Procurement Portal <no-reply@procurement.local>',
+  jobAttempts: Number(process.env.JOB_ATTEMPTS) || 5,
+  jobBackoffMs: Number(process.env.JOB_BACKOFF_MS) || 2000, // doubles on every retry
+  allowInsecureWebhooks: process.env.ALLOW_INSECURE_WEBHOOKS === '1', // http and private addresses, for tests/dev only
   loginRateLimit: Number(process.env.LOGIN_RATE_LIMIT) || (process.env.NODE_ENV === 'test' ? 1000 : 20),
 };

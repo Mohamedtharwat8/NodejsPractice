@@ -3,7 +3,8 @@ const { currentTenantId } = require('./tenantContext');
 
 // Models that carry tenantId. PRItem and Approval are reached only through their
 // PurchaseRequest; Tenant itself is global (platform-level).
-const TENANT_MODELS = new Set(['User', 'Vendor', 'PurchaseRequest', 'PurchaseOrder', 'AuditOutbox']);
+const TENANT_MODELS = new Set(['User', 'Vendor', 'PurchaseRequest', 'PurchaseOrder', 'AuditOutbox',
+  'EventOutbox', 'Notification']);
 
 const FILTERED = new Set([
   'findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany',

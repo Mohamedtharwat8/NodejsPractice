@@ -21,7 +21,7 @@ const audit = (token, query = '') => request(app).get(`${api}/audit${query}`).se
 let admin, requester, approver, procurement, tenantId, ids, slug;
 
 beforeAll(async () => {
-  for (let i = 0; i < 50 && !mongo.ready(); i++) await new Promise((r) => setTimeout(r, 100));
+  for (let i = 0; i < 100 && !mongo.ready(); i++) await new Promise((r) => setTimeout(r, 100));
   if (!mongo.ready()) throw new Error('MongoDB is not reachable: run `docker compose up -d --wait mongo`');
   await AuditEvent.ensureReady();
   await drainAll(); // clears the backlog (including the backfilled pre-phase-7 events)

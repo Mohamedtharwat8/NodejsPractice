@@ -1,25 +1,12 @@
 const router = require('express').Router();
-const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 const prisma = require('../../db/prisma');
 const { runInTenant } = require('../../db/tenantContext');
-const { platformApiKey } = require('../../config/env');
-const { HttpError } = require('../../middleware/error');
+const platformOnly = require('../../middleware/platformOnly');
 const validate = require('../../middleware/validate');
 const schema = require('./tenants.schema');
 const tenantStatus = require('./tenant-status');
 const audit = require('../audit');
-
-// Platform-owner access: a shared secret, not a tenant user. Disabled unless PLATFORM_API_KEY is set.
-function platformOnly(req, res, next) {
-  if (!platformApiKey) throw new HttpError(404, 'Not found');
-  const given = Buffer.from(String(req.headers['x-platform-key'] ?? ''));
-  const expected = Buffer.from(platformApiKey);
-  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
-    throw new HttpError(401, 'Invalid platform key');
-  }
-  next();
-}
 
 router.use(platformOnly);
 

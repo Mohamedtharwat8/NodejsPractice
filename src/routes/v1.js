@@ -5,6 +5,9 @@ const apiVersion = require('../middleware/apiVersion');
 const mounts = [
   ['/platform/tenants', require('../modules/tenants/tenants.routes')],
   ['/auth', require('../modules/auth/auth.routes')],
+  ['/platform/dead-letters', require('../modules/events/deadletters.routes')],
+  ['/notifications', require('../modules/notifications/notifications.routes')],
+  ['/settings', require('../modules/settings/settings.routes')],
   ['/audit', require('../modules/audit/audit.routes')],
   ['/vendors', require('../modules/vendors/vendors.routes')],
   ['/purchase-requests', require('../modules/purchase-requests/pr.routes')],

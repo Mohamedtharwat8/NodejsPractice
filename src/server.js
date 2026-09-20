@@ -1,6 +1,15 @@
 const { port } = require('./config/env');
 const app = require('./app');
-const { startDrainWorker } = require('./modules/audit/drain');
+const { startBackground } = require('./background');
 
-startDrainWorker(); // moves audit events from the Postgres outbox to MongoDB every few seconds
-app.listen(port, () => console.log(`procurement-portal listening on :${port}`));
+const stopBackground = startBackground();
+const server = app.listen(port, () => console.log(`procurement-portal listening on :${port}`));
+
+// Finish in-flight jobs before exiting so a deploy does not leave work half done.
+async function shutdown() {
+  server.close();
+  await stopBackground().catch(() => {});
+  process.exit(0);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

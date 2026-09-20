@@ -3,6 +3,7 @@ const { HttpError } = require('../../middleware/error');
 const audit = require('../audit');
 const repo = require('./pr.repository');
 const prCache = require('./pr.cache');
+const events = require('../events');
 const { paginate } = require('../../lib/pagination');
 
 const total = (items) => items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
@@ -81,9 +82,13 @@ async function submit(user, id) {
     await audit(user.id, 'SUBMIT', 'PurchaseRequest', id, tx, {
       before: { status: 'DRAFT' }, after: { status: 'SUBMITTED', totalAmount: updated.totalAmount },
     });
+    await events.emit('REQUEST_SUBMITTED', {
+      prId: id, title: updated.title, requesterId: user.id, totalAmount: updated.totalAmount,
+    }, tx);
     return updated;
   });
   await prCache.invalidate(id);
+  events.kick();
   return pr;
 }
 
@@ -100,9 +105,14 @@ async function decide(user, id, decision, comment) {
     await audit(user.id, decision, 'PurchaseRequest', id, tx, {
       before: { status: 'SUBMITTED' }, after: { status: decision, comment: comment ?? null },
     });
+    await events.emit('REQUEST_DECIDED', {
+      prId: id, title: existing.title, requesterId: existing.requesterId, decision, comment: comment ?? null,
+      approverId: user.id,
+    }, tx);
     return repo.findById(id, tx);
   });
   await prCache.invalidate(id); // after commit, so a concurrent reader cannot re-cache the old state
+  events.kick();
   return pr;
 }
 

@@ -2,7 +2,7 @@
 
 A multi-tenant procure-to-pay platform: companies (tenants) raise purchase requests, get them approved, and issue purchase orders to vendors. It is also a hands-on project for a full-stack Angular + Node.js skill set (see the coverage matrix below).
 
-**Status:** the multi-tenant, versioned and documented core API (phases 1-7) is implemented. Phases 8-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
+**Status:** the multi-tenant, versioned and documented core API (phases 1-8) is implemented. Phases 9-13 are planned, not built. Local planning notes live in `plans/` (gitignored); everything needed is summarised here.
 
 ## Business Requirements (BRD)
 
@@ -33,7 +33,7 @@ Purchasing in small and mid-size companies runs on email and spreadsheets: no ap
 | FR5 | Purchase order from approved request, one per request, sequential PO number | 1-2 (done) |
 | FR6 | Audit log of every state change | 1-2, MongoDB trail in 7 (done) |
 | FR7 | Tenant isolation: no user can read or write another tenant's data | 3 (done) |
-| FR8 | Notifications to approvers/requesters on state changes | 8-9 |
+| FR8 | Notifications to approvers/requesters on state changes | 8 (done), own service in 9 |
 | FR9 | AI: draft justification, recommend vendor, summarise spend | 10 |
 | FR10 | Web UI for all flows | 11 |
 
@@ -51,11 +51,11 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 | Job requirement | Where it is covered |
 | --- | --- |
 | Angular, TypeScript, SCSS, RxJS, reactive forms, modular components | Phase 11 `client/` |
-| Node.js APIs, async programming, middleware | Done (Express 5 middleware chain); queues in phase 8 |
+| Node.js APIs, async programming, middleware | Done (Express 5 middleware chain, BullMQ jobs in phase 8) |
 | Microservices design | Phase 9: `notification-service`, `ai-service` |
 | PostgreSQL schema design, query optimisation | Prisma schema (done); indexes, `EXPLAIN` and load testing in phase 6 (done, see [docs/performance.md](docs/performance.md)) |
 | MongoDB | Phase 7 (done): audit trail |
-| Redis caching | Phase 5 (done: cache, rate limit, revocation); queues in phase 8 |
+| Redis caching | Phase 5 (done: cache, rate limit, revocation, job queues) |
 | Multi-tenant SaaS | Phase 3 (done) |
 | API versioning and documentation | Phase 4 (done) |
 | AI/LLM integration | Phase 10 |
@@ -70,7 +70,7 @@ Invoicing and payments, RFQ/bidding, goods receipt, SSO, mobile app.
 5. Redis caching and rate limiting — done
 6. Query optimisation and cursor pagination — done
 7. MongoDB audit trail — done
-8. Background jobs and notifications
+8. Background jobs and notifications — done
 9. Extract microservices
 10. AI features
 11. Angular client
@@ -113,6 +113,24 @@ Every state change (requests, approvals, purchase orders, vendors, users, tenant
 - **Tenant isolation:** audit queries are always filtered by the caller's tenant and fail closed without one, like the Prisma extension.
 - **Local setup notes:** `MONGODB_URL` uses `127.0.0.1` because `localhost` failed the driver handshake on the development machine. Mongoose is pinned to 8.x because the 9.x driver (7.x) could not connect from inside Jest here.
 
+### Notifications and background jobs (phase 8)
+State changes publish domain events that background jobs turn into in-app notifications, email and tenant webhooks. Requests never wait for any of it.
+
+| Event | Notifies | Webhook |
+| --- | --- | --- |
+| `REQUEST_SUBMITTED` | Approvers and admins (not the submitter) | no |
+| `REQUEST_DECIDED` | The requester | no |
+| `PO_ISSUED` | The requester | yes |
+| `PO_CANCELLED` | nobody | yes |
+
+- **Outbox → queue → worker:** the event is written to the Postgres table `EventOutbox` in the same transaction as the change; a relay publishes it to BullMQ (Redis) and deletes it; a worker consumes it. Job ids come from the outbox row (`notify-12`), so republishing never duplicates a job. Without Redis, events simply wait in the outbox.
+- **Exactly once for the user:** the in-app notification has a unique key on (user, event, type), so retries, crash recovery and duplicate deliveries create nothing new. Email is at-least-once (it is marked sent right after sending; a crash between the two can send that one message twice). Webhooks are at-least-once too: dedupe on `X-Event-Id`.
+- **Retries:** each job is tried `JOB_ATTEMPTS` times (default 5) with exponential backoff from `JOB_BACKOFF_MS` (default 2 s). A job whose worker dies mid-run is picked up again by the next worker. Jobs that run out of attempts, or fail in a way a retry cannot fix (bad URL, a 4xx answer other than 408/429), move to the dead-letter queue; `GET /platform/dead-letters` lists them and `POST /platform/dead-letters/{id}/retry` requeues one with a fresh budget.
+- **Email:** `SMTP_URL` sends real mail. Without it messages are only built and logged, nothing leaves the process.
+- **Webhooks:** tenant admins set a URL with `PUT /settings/webhook`; the response shows the signing secret once. Each call is a JSON POST with `X-Event-Id`, `X-Event-Type`, `X-Timestamp`, `X-Request-Id` and `X-Signature: sha256=<hex>`, an HMAC-SHA256 of `"<timestamp>.<raw body>"` with the secret. Receivers should check the signature, reject old timestamps and dedupe on the event id. URLs must be https and must not point at private, local or link-local addresses; the check looks at the hostname only, so also restrict outbound traffic at the network level in production. `ALLOW_INSECURE_WEBHOOKS=1` lifts the check for local development.
+- **Tracing:** the request id is stored with the event and comes back on the job, the webhook call and any audit event the job writes.
+- **Running it:** the API process starts the relay and a worker next to the HTTP server. Phase 9 moves the worker into a separate service.
+
 ### API versioning and errors
 Business endpoints live under `/api/v1`; `/health` and `/docs` are unversioned. Every response carries `X-API-Version`. A deprecated version keeps working for at least six months and answers with `Deprecation`, `Sunset` and `Link: <successor>; rel="successor-version"` headers (registry in [src/config/versions.js](src/config/versions.js)).
 
@@ -125,6 +143,9 @@ The OpenAPI spec is built from the same zod schemas the routes validate with ([s
 | --- | --- |
 | `POST /platform/tenants` (creates tenant + first admin; header `x-platform-key`, needs `PLATFORM_API_KEY`) | platform owner |
 | `PATCH /platform/tenants/:id/status` (`ACTIVE` or `SUSPENDED`; header `x-platform-key`) | platform owner |
+| `GET /notifications` (`unread`, `pageSize`, `cursor`), `POST /notifications/read-all`, `POST /notifications/:id/read` | any (own notifications) |
+| `GET /settings/webhook`, `PUT /settings/webhook` (`url` or `null`, `rotateSecret`) | ADMIN |
+| `GET /platform/dead-letters`, `POST /platform/dead-letters/:id/retry` (header `x-platform-key`) | platform owner |
 | `GET /audit` (query: `entity`, `entityId`, `actorId`, `action`, `from`, `to`, `pageSize`, `cursor`) | ADMIN |
 | `POST /auth/login` (body: `tenant`, `email`, `password`) | public |
 | `POST /auth/logout` (revokes the current token) | any |
@@ -143,4 +164,4 @@ List endpoints accept `status`, `page` and `pageSize`. Requests and purchase ord
 `npm run db:load` generates 100,000 requests in a separate `loadtest` tenant, `npm run explain` prints query plans and `npm run bench` measures endpoint latency. Findings, before/after numbers and the rejected `relationJoins` experiment are in [docs/performance.md](docs/performance.md).
 
 ### Tests
-`npm test` needs the migrated and seeded database, Redis and MongoDB from `.env` (`docker compose up -d --wait`). `tests/redis-down.test.js` and `tests/audit-down.test.js` cover the no-Redis and no-MongoDB behaviour. Run it in band (`npm test` does): the tests share the login rate-limit counter.
+`npm test` needs the migrated and seeded database, Redis and MongoDB from `.env` (`docker compose up -d --wait`). `tests/redis-down.test.js` and `tests/audit-down.test.js` cover the no-Redis and no-MongoDB behaviour. Run it in band (`npm test` does): the tests share the login rate-limit counter. Stop any running dev server first: its worker would take jobs from the same Redis queue and the queue tests would miss them.

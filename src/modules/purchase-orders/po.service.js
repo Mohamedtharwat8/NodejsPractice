@@ -3,6 +3,7 @@ const { HttpError } = require('../../middleware/error');
 const audit = require('../audit');
 const repo = require('./po.repository');
 const prCache = require('../purchase-requests/pr.cache');
+const events = require('../events');
 const { paginate } = require('../../lib/pagination');
 
 async function create(actorId, { prId, vendorId }) {
@@ -22,9 +23,13 @@ async function create(actorId, { prId, vendorId }) {
     await audit(actorId, 'CREATE', 'PurchaseOrder', po.id, tx, {
       after: { poNumber: po.poNumber, prId, vendorId, status: po.status },
     });
+    await events.emit('PO_ISSUED', {
+      poId: po.id, poNumber: po.poNumber, prId, vendorId, title: pr.title, requesterId: pr.requesterId,
+    }, tx);
     return po;
   });
   await prCache.invalidate(prId); // the cached request embeds its order
+  events.kick();
   return created;
 }
 
@@ -39,9 +44,12 @@ async function cancel(actorId, id) {
   const po = await prisma.$transaction(async (tx) => {
     if (!(await repo.cancelIfIssued(id, tx))) throw new HttpError(409, 'Order not found or not ISSUED');
     await audit(actorId, 'CANCEL', 'PurchaseOrder', id, tx, { before: { status: 'ISSUED' }, after: { status: 'CANCELLED' } });
-    return repo.findById(id, tx);
+    const cancelled = await repo.findById(id, tx);
+    await events.emit('PO_CANCELLED', { poId: id, poNumber: cancelled.poNumber, prId: cancelled.prId }, tx);
+    return cancelled;
   });
   await prCache.invalidate(po.prId);
+  events.kick();
   return po;
 }
 

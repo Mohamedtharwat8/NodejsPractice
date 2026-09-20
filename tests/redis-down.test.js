@@ -46,3 +46,14 @@ it('logout says it is unavailable instead of pretending to revoke', async () => 
   expect(res.body.error.code).toBe('SERVICE_UNAVAILABLE');
   expect((await request(app).get(`${api}/auth/me`).set(as(token))).status).toBe(200); // token still valid
 });
+
+it('keeps domain events in the outbox while the queue is unreachable, and reports the queue as down', async () => {
+  expect((await request(app).get('/health')).body.queue).toBe('down');
+  const [requester] = await Promise.all([login('requester@example.com')]);
+  const before = await prisma.unscoped.eventOutbox.count();
+  const pr = await request(app).post(`${api}/purchase-requests`).set(as(requester))
+    .send({ title: 'Queue offline', items: [{ description: 'x', quantity: 1, unitPrice: 1 }] });
+  const submit = await request(app).post(`${api}/purchase-requests/${pr.body.id}/submit`).set(as(requester));
+  expect(submit.status).toBe(200); // the business action succeeds
+  expect(await prisma.unscoped.eventOutbox.count()).toBe(before + 1); // and its event waits for the queue
+});

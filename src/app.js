@@ -8,6 +8,7 @@ const { notFound, errorHandler } = require('./middleware/error');
 const { buildSpec } = require('./docs/openapi');
 const { status: redisStatus } = require('./infra/redis');
 const { status: mongoStatus } = require('./infra/mongo');
+const { status: queueStatus } = require('./infra/queue');
 
 const app = express();
 
@@ -17,8 +18,8 @@ app.use(cors());
 app.use(express.json());
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
-// Redis and MongoDB are not needed to serve requests, so their state is reported but never fails health.
-app.get('/health', (req, res) => res.json({ status: 'ok', redis: redisStatus(), mongo: mongoStatus() }));
+// Redis, MongoDB and the queue are not needed to serve requests, so their state is reported but never fails health.
+app.get('/health', (req, res) => res.json({ status: 'ok', redis: redisStatus(), mongo: mongoStatus(), queue: queueStatus() }));
 
 const spec = buildSpec();
 app.get('/docs/openapi.json', (req, res) => res.json(spec));

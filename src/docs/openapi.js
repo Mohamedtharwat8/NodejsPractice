@@ -5,6 +5,8 @@ const pr = require('../modules/purchase-requests/pr.schema');
 const po = require('../modules/purchase-orders/po.schema');
 const tenants = require('../modules/tenants/tenants.schema');
 const audit = require('../modules/audit/audit.schema');
+const notifications = require('../modules/notifications/notifications.schema');
+const settings = require('../modules/settings/settings.schema');
 
 // Request bodies and query strings come straight from the zod schemas the routes validate with,
 // so the documented input can never drift from the enforced input.
@@ -142,6 +144,42 @@ const components = {
         pageSize: { type: 'integer' },
       },
     },
+    Notification: {
+      type: 'object',
+      description: 'In-app notification for one user. Created by a background job, at most once per event and user.',
+      properties: {
+        id: { type: 'integer' }, type: { type: 'string', example: 'REQUEST_SUBMITTED' },
+        title: { type: 'string' }, entity: { type: 'string' }, entityId: { type: 'integer' },
+        readAt: { type: ['string', 'null'], format: 'date-time' }, createdAt: { type: 'string', format: 'date-time' },
+      },
+    },
+    WebhookSettings: {
+      type: 'object',
+      properties: {
+        url: { type: ['string', 'null'] },
+        hasSecret: { type: 'boolean' },
+        secret: { type: 'string', description: 'Only in the response that generated it. Store it now; it cannot be read again.' },
+      },
+    },
+    DeadLetterList: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' }, job: { enum: ['notify', 'webhook'] }, tenantId: { type: 'integer' },
+              type: { type: 'string' }, eventId: { type: 'integer' }, failedReason: { type: 'string' },
+              attemptsMade: { type: 'integer' }, parkedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+    },
+    Requeued: { type: 'object', properties: { requeued: { type: 'string' }, eventId: { type: 'integer' } } },
+    Updated: { type: 'object', properties: { updated: { type: 'integer' } } },
+    NotificationPage: page('Notification'),
     VendorPage: page('Vendor'),
     PurchaseRequestPage: page('PurchaseRequest'),
     PurchaseOrderPage: page('PurchaseOrder'),
@@ -165,6 +203,25 @@ const operations = [
   { method: 'post', path: '/auth/register', tag: 'Auth', summary: 'Create a user in your own tenant',
     roles: ['ADMIN'], body: auth.register, ok: [201, 'User'], errors: [400, 401, 403, 409] },
   { method: 'get', path: '/auth/me', tag: 'Auth', summary: 'Current user', ok: [200, 'User'], errors: [401] },
+
+  { method: 'get', path: '/notifications', tag: 'Notifications', summary: 'Your notifications (newest first)',
+    description: 'Created by background jobs shortly after the event; also sent by email.', query: notifications.list,
+    ok: [200, 'NotificationPage'], errors: [400, 401] },
+  { method: 'post', path: '/notifications/read-all', tag: 'Notifications', summary: 'Mark all your notifications as read',
+    ok: [200, 'Updated'], errors: [401] },
+  { method: 'post', path: '/notifications/{id}/read', tag: 'Notifications', summary: 'Mark one of your notifications as read',
+    ok: [200, 'Notification'], errors: [401, 404] },
+
+  { method: 'get', path: '/settings/webhook', tag: 'Settings', summary: 'Webhook configuration of your tenant',
+    roles: ['ADMIN'], ok: [200, 'WebhookSettings'], errors: [401, 403] },
+  { method: 'put', path: '/settings/webhook', tag: 'Settings', summary: 'Set or clear the tenant webhook',
+    description: 'PO_ISSUED and PO_CANCELLED events are POSTed to the URL with X-Event-Id, X-Event-Type, X-Timestamp and X-Signature (sha256 HMAC over "timestamp.body" with the secret). Deliveries are retried with backoff; dedupe on X-Event-Id. https only, no private addresses.',
+    roles: ['ADMIN'], body: settings.webhook, ok: [200, 'WebhookSettings'], errors: [400, 401, 403] },
+
+  { method: 'get', path: '/platform/dead-letters', tag: 'Platform', summary: 'Jobs that exhausted their retries',
+    security: 'platformKey', ok: [200, 'DeadLetterList'], errors: [401, 503] },
+  { method: 'post', path: '/platform/dead-letters/{id}/retry', tag: 'Platform', summary: 'Requeue a parked job with a fresh retry budget',
+    security: 'platformKey', ok: [202, 'Requeued'], errors: [401, 404, 503] },
 
   { method: 'get', path: '/audit', tag: 'Audit', summary: 'Search the audit trail (newest first)',
     description: 'Events are written with the change and reach MongoDB within seconds; this call flushes pending ones first. 503 if MongoDB is unavailable.',

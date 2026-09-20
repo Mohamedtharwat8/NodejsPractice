@@ -4,8 +4,8 @@ const request = require('supertest');
 const app = require('../src/app');
 const prisma = require('../src/db/prisma');
 
-const login = async (email) =>
-  (await request(app).post('/auth/login').send({ email, password: 'Password123!' })).body.token;
+const login = async (email, tenant = 'acme') =>
+  (await request(app).post('/auth/login').send({ tenant, email, password: 'Password123!' })).body.token;
 const as = (token) => ({ Authorization: `Bearer ${token}` });
 
 afterAll(() => prisma.$disconnect());

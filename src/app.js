@@ -2,7 +2,9 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
+const swaggerUi = require('swagger-ui-express');
 const { notFound, errorHandler } = require('./middleware/error');
+const { buildSpec } = require('./docs/openapi');
 
 const app = express();
 
@@ -13,11 +15,11 @@ if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-app.use('/platform/tenants', require('./modules/tenants/tenants.routes'));
-app.use('/auth', require('./modules/auth/auth.routes'));
-app.use('/vendors', require('./modules/vendors/vendors.routes'));
-app.use('/purchase-requests', require('./modules/purchase-requests/pr.routes'));
-app.use('/purchase-orders', require('./modules/purchase-orders/po.routes'));
+const spec = buildSpec();
+app.get('/docs/openapi.json', (req, res) => res.json(spec));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec, { customSiteTitle: 'Procurement Portal API' }));
+
+app.use('/api/v1', require('./routes/v1'));
 
 app.use(notFound);
 app.use(errorHandler);

@@ -1,18 +1,12 @@
 const router = require('express').Router();
 const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
-const { z } = require('zod');
 const prisma = require('../../db/prisma');
 const { runInTenant } = require('../../db/tenantContext');
 const { platformApiKey } = require('../../config/env');
 const { HttpError } = require('../../middleware/error');
 const validate = require('../../middleware/validate');
-
-const createSchema = z.object({
-  name: z.string().min(1),
-  slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'lowercase letters, digits and hyphens'),
-  admin: z.object({ name: z.string().min(1), email: z.email(), password: z.string().min(8) }),
-});
+const schema = require('./tenants.schema');
 
 // Platform-owner access: a shared secret, not a tenant user. Disabled unless PLATFORM_API_KEY is set.
 function platformOnly(req, res, next) {
@@ -28,7 +22,7 @@ function platformOnly(req, res, next) {
 router.use(platformOnly);
 
 // Creates a tenant together with its first admin, atomically (FR17).
-router.post('/', validate(createSchema), async (req, res) => {
+router.post('/', validate(schema.create), async (req, res) => {
   const { name, slug, admin } = req.body;
   const { password, ...adminData } = admin;
   const passwordHash = await bcrypt.hash(password, 10);

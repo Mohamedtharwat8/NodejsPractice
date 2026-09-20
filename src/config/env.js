@@ -10,4 +10,6 @@ module.exports = {
   port: Number(process.env.PORT) || 3000,
   jwtSecret: process.env.JWT_SECRET || 'test-secret',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '8h',
+  // Platform-owner key for /platform/* routes. Unset disables those routes.
+  platformApiKey: process.env.PLATFORM_API_KEY,
 };

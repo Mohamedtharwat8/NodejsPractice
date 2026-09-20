@@ -10,7 +10,11 @@ const loginLimiter = rateLimit({
   limit: process.env.NODE_ENV === 'test' ? 1000 : 20,
 });
 
-const loginSchema = z.object({ email: z.email(), password: z.string().min(1) });
+const loginSchema = z.object({
+  tenant: z.string().min(1), // tenant slug
+  email: z.email(),
+  password: z.string().min(1),
+});
 const registerSchema = z.object({
   name: z.string().min(1),
   email: z.email(),

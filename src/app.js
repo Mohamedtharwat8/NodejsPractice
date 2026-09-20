@@ -13,6 +13,7 @@ if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+app.use('/platform/tenants', require('./modules/tenants/tenants.routes'));
 app.use('/auth', require('./modules/auth/auth.routes'));
 app.use('/vendors', require('./modules/vendors/vendors.routes'));
 app.use('/purchase-requests', require('./modules/purchase-requests/pr.routes'));
